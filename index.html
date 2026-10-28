@@ -89,6 +89,15 @@
   .tag.info { color: var(--info); background: var(--info-bg); }
   .tag.other { color: var(--muted); background: var(--chip); }
   .copy { padding: 2px 8px; font-size: 12px; flex: none; }
+  .vol { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .vol.low { color: var(--muted); font-weight: 400; }
+  .lt .vol { display: inline-block; margin-right: 6px; }
+  .comp { font-size: 11px; color: var(--muted); }
+  .comp.높음 { color: var(--high); } .comp.중간 { color: var(--commerce); } .comp.낮음 { color: var(--naver); }
+  .filters select {
+    margin-left: auto; font: inherit; font-size: 13px; color: var(--text); background: var(--card);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+  }
   .note { padding: 0 16px 12px; color: var(--muted); font-size: 12px; }
 
   @media (max-width: 900px) {
@@ -121,9 +130,13 @@
       <button data-tier="high" aria-pressed="false">고단가</button>
       <button data-tier="commerce" aria-pressed="false">수익형</button>
       <button data-tier="info" aria-pressed="false">정보형</button>
+      <select id="sort" aria-label="정렬">
+        <option value="score">추천순</option>
+        <option value="volume">검색량순</option>
+      </select>
     </div>
     <ol id="longtail" class="lt"></ol>
-    <p class="note">고단가 = 금융·보험·법률·의료·부동산·자동차·교육 주제(광고 단가가 높은 편), 수익형 = 가격·후기·추천·예약 등 구매 의도, 정보형 = 방법·원인·일정 등. 주제어 기준 추정치이며 실제 CPC가 아닙니다. 여러 포털 자동완성에 동시에 뜬 키워드일수록 위에 표시됩니다.</p>
+    <p class="note">고단가 = 금융·보험·법률·의료·부동산·자동차·교육 주제(광고 단가가 높은 편), 수익형 = 가격·후기·추천·예약 등 구매 의도, 정보형 = 방법·원인·일정 등. 주제어 기준 추정치이며 실제 CPC가 아닙니다. 여러 포털 자동완성에 동시에 뜬 키워드일수록 위에 표시됩니다. 검색량은 네이버 검색광고 기준 최근 30일 PC+모바일 검색 수, 경쟁은 광고주 경쟁 정도입니다(방금 뜬 키워드는 아직 집계가 적을 수 있음).</p>
   </section>
   <section id="s-naver" style="--brand: var(--naver)">
     <h2>네이버<small>Signal.bz 실시간 + 많이 본 뉴스</small></h2>
@@ -144,21 +157,63 @@
 <script>
   // Cloudflare Worker endpoint (live); data.json is the GitHub Actions backup
   const LIVE_API = 'https://trends-api.rudtn9900.workers.dev/api';
+  const VOLUME_API = 'https://trends-api.rudtn9900.workers.dev/volume';
   const REFRESH_MS = 60000;
   const TIER_LABEL = { high: '고단가', commerce: '수익형', info: '정보형', other: '기타' };
   const SOURCE_LABEL = { naver: '네이버', google: '구글', daum: '다음' };
+  const RANKED = ['naver', 'naverNews', 'google', 'daum'];
   let previous = {};
   let longtail = [];
   let tierFilter = 'all';
+  let sortBy = 'score';
+  let lastData = null;
+  // Monthly volumes keyed like the Worker's volumeKey; null = looked up, no data
+  const volumes = new Map();
+  let volumeEnabled = true;
 
-  function badge(source, item) {
-    // Prefer the source's own movement badge; otherwise compare with the last fetch
+  const volumeKey = k => String(k).replace(/[^0-9A-Za-z가-힣]/g, '').toUpperCase();
+
+  function formatCount(n) {
+    if (n >= 10000) return `${(n / 10000).toFixed(n >= 100000 ? 0 : 1)}만`;
+    return n.toLocaleString('ko-KR');
+  }
+
+  function volumeHtml(keyword, withComp) {
+    const v = volumes.get(volumeKey(keyword));
+    if (!v) return '';
+    const label = v.low ? '<10' : formatCount(v.total);
+    const title = `월간 검색 PC ${v.low ? '<10' : v.pc.toLocaleString('ko-KR')} · 모바일 ${v.low ? '<10' : v.mobile.toLocaleString('ko-KR')}`;
+    const comp = withComp && v.comp ? ` <span class="comp ${esc(v.comp)}">경쟁 ${esc(v.comp)}</span>` : '';
+    return `<span class="vol${v.low ? ' low' : ''}" title="${title}">월 ${label}</span>${comp}`;
+  }
+
+  async function loadVolumes() {
+    if (!volumeEnabled || !lastData) return;
+    const words = [
+      ...(longtail || []).map(i => i.keyword),
+      ...['naver', 'google', 'daum'].flatMap(s => (lastData[s]?.items || []).map(i => i.keyword)),
+    ];
+    const todo = [...new Set(words.map(volumeKey).filter(k => k && !volumes.has(k)))];
+    for (let i = 0; i < todo.length; i += 25) {
+      const batch = todo.slice(i, i + 25);
+      try {
+        const res = await fetchJson(`${VOLUME_API}?q=${encodeURIComponent(batch.join(','))}`);
+        if (res.error === 'not_configured') { volumeEnabled = false; return; }
+        for (const k of batch) if (k in res.items) volumes.set(k, res.items[k]);
+      } catch {
+        return; // try again on the next refresh
+      }
+      renderAll();
+    }
+  }
+
+  function badge(prev, item) {
+    // Prefer the source's own movement badge; otherwise compare with the previous fetch
     const s = (item.state || '').toLowerCase();
     if (s === 'n' || s === 'new') return '<span class="new">NEW</span>';
     if (s === '+' || s === 'up') return '<span class="up">▲</span>';
     if (s === '-' || s === 'down') return '<span class="down">▼</span>';
     if (s) return '';
-    const prev = previous[source];
     if (!prev) return '';
     const before = prev.get(item.keyword);
     if (before === undefined) return '<span class="new">NEW</span>';
@@ -171,32 +226,40 @@
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function render(source, data) {
+  function render(source, data, prev) {
     const el = document.getElementById(source);
     if (!data || data.error) { el.innerHTML = `<li class="error">불러오지 못했습니다${data ? ': ' + esc(data.error) : ''}</li>`; return; }
     if (!data.items.length) { el.innerHTML = '<li class="empty">항목이 없습니다.</li>'; return; }
     el.innerHTML = data.items.map(item => {
       const sub = item.news ? `<span class="sub">${esc(item.news)}</span>` : '';
-      const meta = [item.traffic ? esc(item.traffic) : '', badge(source, item)].filter(Boolean).join(' ');
+      const meta = [volumeHtml(item.keyword, false), item.traffic ? esc(item.traffic) : '', badge(prev, item)].filter(Boolean).join(' ');
       return `<li><a href="${esc(item.url)}" target="_blank" rel="noopener">
         <span class="rank">${item.rank}</span>
         <span class="kw">${esc(item.keyword)}${sub}</span>
         ${source === 'naverNews' ? '' : `<span class="meta">${meta}</span>`}
       </a></li>`;
     }).join('');
-    previous[source] = new Map(data.items.map(i => [i.keyword, i.rank]));
+  }
+
+  function renderAll() {
+    for (const source of RANKED) render(source, lastData[source], previous[source]);
+    renderLongtail();
   }
 
   function renderLongtail() {
     const el = document.getElementById('longtail');
     if (!longtail) { el.innerHTML = '<li class="empty">롱테일 추천은 실시간 서버에서만 제공됩니다. 잠시 후 다시 시도해 주세요.</li>'; return; }
     const rows = longtail.filter(i => tierFilter === 'all' || i.tier === tierFilter);
+    if (sortBy === 'volume') {
+      const total = i => volumes.get(volumeKey(i.keyword))?.total ?? -1;
+      rows.sort((a, b) => total(b) - total(a) || b.score - a.score);
+    }
     if (!rows.length) { el.innerHTML = '<li class="empty">해당 분류의 키워드가 지금은 없습니다.</li>'; return; }
     el.innerHTML = rows.map((i, n) => `<li>
       <span class="rank">${n + 1}</span>
       <span class="body">
         <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.keyword)}</a>
-        <span class="from">${esc(i.seed)} · ${i.sources.map(s => SOURCE_LABEL[s] || s).join('·')}</span>
+        <span class="from">${volumeHtml(i.keyword, true)}${esc(i.seed)} · ${i.sources.map(s => SOURCE_LABEL[s] || s).join('·')}</span>
       </span>
       <span class="tag ${i.tier}">${TIER_LABEL[i.tier]}</span>
       <button class="copy" data-kw="${esc(i.keyword)}">복사</button>
@@ -226,9 +289,12 @@
         return;
       }
     }
-    for (const source of ['naver', 'naverNews', 'google', 'daum']) render(source, data[source]);
+    // Rank movement compares against the previous fetch, not against a re-render
+    if (lastData) for (const s of RANKED) previous[s] = new Map((lastData[s]?.items || []).map(i => [i.keyword, i.rank]));
+    lastData = data;
     longtail = data.longtail && !data.longtail.error ? data.longtail.items : null;
-    renderLongtail();
+    renderAll();
+    loadVolumes();
 
     const t = new Date(data.updated);
     const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
@@ -244,6 +310,11 @@
     if (!b) return;
     tierFilter = b.dataset.tier;
     for (const x of document.querySelectorAll('#filters button')) x.setAttribute('aria-pressed', String(x === b));
+    renderLongtail();
+  });
+
+  document.getElementById('sort').addEventListener('change', e => {
+    sortBy = e.target.value;
     renderLongtail();
   });
 

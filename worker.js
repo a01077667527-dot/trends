@@ -1,5 +1,6 @@
 // Cloudflare Worker: live keywords (Naver / Google / Daum) + blog long-tail suggestions
 // GET /api -> same shape as data.json plus "longtail"; cached 60s at the edge
+// GET /volume?q=a,b,c -> Naver monthly search volume (needs secrets NAVER_API_KEY, NAVER_SECRET_KEY, NAVER_CUSTOMER_ID)
 
 const CACHE_SECONDS = 60;
 const SEED_COUNT = 12; // 12 seeds x 3 autocomplete calls + 4 sources stays under the free plan's 50 subrequests
@@ -14,6 +15,7 @@ export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const url = new URL(request.url);
+    if (url.pathname === '/volume') return volume(url, env, ctx);
     if (url.pathname !== '/api') return new Response('Not found', { status: 404, headers: CORS });
 
     const cache = caches.default;
@@ -33,6 +35,87 @@ export default {
     return res;
   },
 };
+
+// ---- Search volume (Naver Search Ad keyword tool) ----
+
+const VOLUME_CACHE_SECONDS = 86400; // monthly figures; refreshing daily is plenty
+const VOLUME_MAX = 25;              // 5 API calls of 5 hints each per request
+
+function json(data, maxAge = 0) {
+  return new Response(JSON.stringify(data), {
+    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': `public, max-age=${maxAge}` },
+  });
+}
+
+// The keyword tool rejects spaces and most symbols in hints
+const volumeKey = k => k.replace(/[^0-9A-Za-z가-힣]/g, '').toUpperCase();
+
+async function signHeaders(env, method, path) {
+  const ts = String(Date.now());
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.NAVER_SECRET_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${ts}.${method}.${path}`));
+  return {
+    'X-Timestamp': ts,
+    'X-API-KEY': env.NAVER_API_KEY,
+    'X-Customer': String(env.NAVER_CUSTOMER_ID),
+    'X-Signature': btoa(String.fromCharCode(...new Uint8Array(sig))),
+  };
+}
+
+const toCount = v => (typeof v === 'number' ? v : 5); // API reports tiny volumes as "< 10"
+
+async function lookupVolumes(env, hints) {
+  const path = '/keywordstool';
+  const res = await fetch(`https://api.searchad.naver.com${path}?hintKeywords=${encodeURIComponent(hints.join(','))}&showDetail=1`, {
+    headers: await signHeaders(env, 'GET', path),
+  });
+  if (!res.ok) throw new Error(`searchad HTTP ${res.status}`);
+  const out = {};
+  for (const k of (await res.json()).keywordList || []) {
+    const key = volumeKey(k.relKeyword);
+    if (!hints.includes(key)) continue;
+    const pc = toCount(k.monthlyPcQcCnt), mobile = toCount(k.monthlyMobileQcCnt);
+    out[key] = {
+      pc, mobile, total: pc + mobile,
+      low: typeof k.monthlyPcQcCnt !== 'number' && typeof k.monthlyMobileQcCnt !== 'number',
+      comp: k.compIdx || null, // 낮음 / 중간 / 높음 (advertiser competition)
+    };
+  }
+  for (const h of hints) if (!out[h]) out[h] = null; // cache misses too, so unknown phrases are not re-queried
+  return out;
+}
+
+async function volume(url, env, ctx) {
+  if (!env.NAVER_API_KEY || !env.NAVER_SECRET_KEY || !env.NAVER_CUSTOMER_ID) return json({ error: 'not_configured', items: {} });
+
+  const keys = [...new Set((url.searchParams.get('q') || '').split(',').map(volumeKey).filter(Boolean))].slice(0, VOLUME_MAX);
+  const cache = caches.default;
+  const cacheReq = k => new Request(`${url.origin}/__vol/${encodeURIComponent(k)}`);
+  const items = {};
+  const missing = [];
+
+  await Promise.all(keys.map(async k => {
+    const hit = await cache.match(cacheReq(k));
+    if (hit) items[k] = await hit.json(); else missing.push(k);
+  }));
+
+  const batches = [];
+  for (let i = 0; i < missing.length; i += 5) batches.push(missing.slice(i, i + 5));
+  const errors = [];
+  await Promise.all(batches.map(async batch => {
+    try {
+      const found = await lookupVolumes(env, batch);
+      for (const [k, v] of Object.entries(found)) {
+        items[k] = v;
+        ctx.waitUntil(cache.put(cacheReq(k), json(v, VOLUME_CACHE_SECONDS)));
+      }
+    } catch (e) {
+      errors.push(String(e.message || e));
+    }
+  }));
+
+  return json({ items, error: errors[0] || null });
+}
 
 async function collect() {
   const [naver, naverNews, google, daum] = await Promise.all([
