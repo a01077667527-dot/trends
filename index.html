@@ -184,7 +184,7 @@
     const label = v.low ? '<10' : formatCount(v.total);
     const title = `월간 검색 PC ${v.low ? '<10' : v.pc.toLocaleString('ko-KR')} · 모바일 ${v.low ? '<10' : v.mobile.toLocaleString('ko-KR')}`;
     const comp = withComp && v.comp ? ` <span class="comp ${esc(v.comp)}">경쟁 ${esc(v.comp)}</span>` : '';
-    return `<span class="vol${v.low ? ' low' : ''}" title="${title}">월 ${label}</span>${comp}`;
+    return `<span class="vol${v.low ? ' low' : ''}" title="${title}">월 ${label}</span>${comp}${withComp ? ' · ' : ''}`;
   }
 
   async function loadVolumes() {
