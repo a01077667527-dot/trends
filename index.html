@@ -8,15 +8,21 @@
   :root {
     --bg: #f5f6f8; --card: #ffffff; --text: #1d1f24; --muted: #6b7280; --line: #e7e9ee;
     --hover: #f2f4f7; --up: #e5484d; --down: #3b82f6; --new: #f59e0b;
-    --naver: #03c75a; --google: #4285f4; --daum: #ff5a4a;
+    --naver: #03c75a; --google: #4285f4; --daum: #ff5a4a; --blog: #8b5cf6;
+    --high: #dc2626; --high-bg: #fee2e2; --commerce: #b45309; --commerce-bg: #fef3c7;
+    --info: #2563eb; --info-bg: #dbeafe; --chip: #eef0f4;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #111316; --card: #1a1d21; --text: #e8eaed; --muted: #9aa0a6; --line: #2a2e34; --hover: #22262b;
+      --high: #f87171; --high-bg: #3b1515; --commerce: #fbbf24; --commerce-bg: #3a2a0c;
+      --info: #60a5fa; --info-bg: #132640; --chip: #262a30;
     }
   }
   :root[data-theme="dark"] {
     --bg: #111316; --card: #1a1d21; --text: #e8eaed; --muted: #9aa0a6; --line: #2a2e34; --hover: #22262b;
+    --high: #f87171; --high-bg: #3b1515; --commerce: #fbbf24; --commerce-bg: #3a2a0c;
+    --info: #60a5fa; --info-bg: #132640; --chip: #262a30;
   }
   * { box-sizing: border-box; }
   body {
@@ -29,6 +35,8 @@
   }
   h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
   .status { color: var(--muted); font-size: 13px; display: flex; gap: 10px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 4px; }
+  .dot.live { background: var(--naver); }
   button {
     font: inherit; font-size: 13px; color: var(--text); background: var(--card);
     border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; cursor: pointer;
@@ -39,25 +47,14 @@
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
   }
   nav { display: none; }
-  @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; }
-    nav {
-      display: flex; gap: 8px; position: sticky; top: 0; z-index: 1;
-      padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
-    }
-    nav a {
-      flex: 1; text-align: center; padding: 6px 0; border-radius: 8px; font-size: 14px; font-weight: 600;
-      color: var(--text); text-decoration: none; background: var(--card); border: 1px solid var(--line);
-    }
-    section { scroll-margin-top: 56px; }
-  }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  section.wide { grid-column: 1 / -1; }
   section h2 {
     margin: 0; padding: 14px 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;
     border-bottom: 1px solid var(--line);
   }
-  section h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
-  section h2 small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; }
+  section h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); flex: none; }
+  section h2 small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; text-align: right; }
   h3 { margin: 0; padding: 12px 16px 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
   ol { list-style: none; margin: 0; padding: 4px 0 8px; }
   li a {
@@ -73,16 +70,61 @@
   .news li a { grid-template-columns: 26px 1fr; font-size: 14px; }
   .error { padding: 16px; color: var(--up); font-size: 13px; }
   .empty { padding: 16px; color: var(--muted); font-size: 13px; }
+
+  /* Long-tail panel */
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 16px 4px; }
+  .filters button { border-radius: 999px; padding: 4px 12px; }
+  .filters button[aria-pressed="true"] { background: var(--text); color: var(--card); border-color: var(--text); }
+  .lt { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; padding: 4px 0 8px; }
+  .lt li { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 16px; border-bottom: 1px solid var(--line); min-width: 0; }
+  .lt li:hover { background: var(--hover); }
+  .lt .rank { width: 22px; flex: none; }
+  .lt .body { flex: 1; min-width: 0; }
+  .lt .body a { color: inherit; text-decoration: none; font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lt .body a:hover { text-decoration: underline; }
+  .lt .from { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; white-space: nowrap; flex: none; }
+  .tag.high { color: var(--high); background: var(--high-bg); }
+  .tag.commerce { color: var(--commerce); background: var(--commerce-bg); }
+  .tag.info { color: var(--info); background: var(--info-bg); }
+  .tag.other { color: var(--muted); background: var(--chip); }
+  .copy { padding: 2px 8px; font-size: 12px; flex: none; }
+  .note { padding: 0 16px 12px; color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .lt { grid-template-columns: 1fr; }
+    nav {
+      display: flex; gap: 6px; position: sticky; top: 0; z-index: 1;
+      padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
+    }
+    nav a {
+      flex: 1; text-align: center; padding: 6px 0; border-radius: 8px; font-size: 14px; font-weight: 600;
+      color: var(--text); text-decoration: none; background: var(--card); border: 1px solid var(--line);
+    }
+    section { scroll-margin-top: 56px; }
+  }
   footer { max-width: 1280px; margin: 0 auto; padding: 0 16px 24px; color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
 <header>
   <h1>실시간 키워드 모아보기</h1>
-  <div class="status"><span id="updated">불러오는 중…</span><button id="refresh">새로고침</button></div>
+  <div class="status"><span><span id="dot" class="dot"></span><span id="updated">불러오는 중…</span></span><button id="refresh">새로고침</button></div>
 </header>
-<nav><a href="#s-naver">네이버</a><a href="#s-google">구글</a><a href="#s-daum">다음</a></nav>
+<nav><a href="#s-longtail">롱테일</a><a href="#s-naver">네이버</a><a href="#s-google">구글</a><a href="#s-daum">다음</a></nav>
 <main>
+  <section id="s-longtail" class="wide" style="--brand: var(--blog)">
+    <h2>블로그 롱테일 추천<small>급상승 키워드 × 네이버·구글·다음 자동완성</small></h2>
+    <div class="filters" id="filters">
+      <button data-tier="all" aria-pressed="true">전체</button>
+      <button data-tier="high" aria-pressed="false">고단가</button>
+      <button data-tier="commerce" aria-pressed="false">수익형</button>
+      <button data-tier="info" aria-pressed="false">정보형</button>
+    </div>
+    <ol id="longtail" class="lt"></ol>
+    <p class="note">고단가 = 금융·보험·법률·의료·부동산·자동차·교육 주제(광고 단가가 높은 편), 수익형 = 가격·후기·추천·예약 등 구매 의도, 정보형 = 방법·원인·일정 등. 주제어 기준 추정치이며 실제 CPC가 아닙니다. 여러 포털 자동완성에 동시에 뜬 키워드일수록 위에 표시됩니다.</p>
+  </section>
   <section id="s-naver" style="--brand: var(--naver)">
     <h2>네이버<small>Signal.bz 실시간 + 많이 본 뉴스</small></h2>
     <ol id="naver"></ol>
@@ -98,10 +140,16 @@
     <ol id="daum"></ol>
   </section>
 </main>
-<footer>키워드는 약 10분마다 수집되고 화면은 2분마다 확인합니다 ·네이버는 실시간 검색어를 종료하여 Signal.bz 집계와 많이 본 뉴스로 대신합니다.</footer>
+<footer>실시간 서버에서 1분마다 갱신 · 서버 장애 시 GitHub 백업 데이터(약 10분 주기)로 자동 전환 · 네이버는 실시간 검색어를 종료하여 Signal.bz 집계와 많이 본 뉴스로 대신합니다.</footer>
 <script>
-  const REFRESH_MS = 120000;
+  // Cloudflare Worker endpoint (live); data.json is the GitHub Actions backup
+  const LIVE_API = 'https://trends-api.rudtn9900.workers.dev/api';
+  const REFRESH_MS = 60000;
+  const TIER_LABEL = { high: '고단가', commerce: '수익형', info: '정보형', other: '기타' };
+  const SOURCE_LABEL = { naver: '네이버', google: '구글', daum: '다음' };
   let previous = {};
+  let longtail = [];
+  let tierFilter = 'all';
 
   function badge(source, item) {
     // Prefer the source's own movement badge; otherwise compare with the last fetch
@@ -125,7 +173,7 @@
 
   function render(source, data) {
     const el = document.getElementById(source);
-    if (data.error) { el.innerHTML = `<li class="error">불러오지 못했습니다: ${esc(data.error)}</li>`; return; }
+    if (!data || data.error) { el.innerHTML = `<li class="error">불러오지 못했습니다${data ? ': ' + esc(data.error) : ''}</li>`; return; }
     if (!data.items.length) { el.innerHTML = '<li class="empty">항목이 없습니다.</li>'; return; }
     el.innerHTML = data.items.map(item => {
       const sub = item.news ? `<span class="sub">${esc(item.news)}</span>` : '';
@@ -139,25 +187,77 @@
     previous[source] = new Map(data.items.map(i => [i.keyword, i.rank]));
   }
 
+  function renderLongtail() {
+    const el = document.getElementById('longtail');
+    if (!longtail) { el.innerHTML = '<li class="empty">롱테일 추천은 실시간 서버에서만 제공됩니다. 잠시 후 다시 시도해 주세요.</li>'; return; }
+    const rows = longtail.filter(i => tierFilter === 'all' || i.tier === tierFilter);
+    if (!rows.length) { el.innerHTML = '<li class="empty">해당 분류의 키워드가 지금은 없습니다.</li>'; return; }
+    el.innerHTML = rows.map((i, n) => `<li>
+      <span class="rank">${n + 1}</span>
+      <span class="body">
+        <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.keyword)}</a>
+        <span class="from">${esc(i.seed)} · ${i.sources.map(s => SOURCE_LABEL[s] || s).join('·')}</span>
+      </span>
+      <span class="tag ${i.tier}">${TIER_LABEL[i.tier]}</span>
+      <button class="copy" data-kw="${esc(i.keyword)}">복사</button>
+    </li>`).join('');
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    return res.json();
+  }
+
   async function load() {
     const btn = document.getElementById('refresh');
     btn.disabled = true;
+    let data, live = false;
     try {
-      // Query string busts the GitHub Pages CDN cache
-      const res = await fetch(`data.json?t=${Date.now()}`, { cache: 'no-store' });
-      const data = await res.json();
-      for (const source of ['naver', 'naverNews', 'google', 'daum']) render(source, data[source]);
-      const t = new Date(data.updated);
-      const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
-      const ago = mins < 1 ? '방금' : `${mins}분 전`;
-      document.getElementById('updated').textContent =
-        `${t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })} 기준 · ${ago}`;
-    } catch (e) {
-      document.getElementById('updated').textContent = '데이터를 불러오지 못했습니다';
-    } finally {
-      btn.disabled = false;
+      data = await fetchJson(LIVE_API);
+      live = true;
+    } catch {
+      try {
+        // Query string busts the GitHub Pages CDN cache
+        data = await fetchJson(`data.json?t=${Date.now()}`);
+      } catch {
+        document.getElementById('updated').textContent = '데이터를 불러오지 못했습니다';
+        btn.disabled = false;
+        return;
+      }
     }
+    for (const source of ['naver', 'naverNews', 'google', 'daum']) render(source, data[source]);
+    longtail = data.longtail && !data.longtail.error ? data.longtail.items : null;
+    renderLongtail();
+
+    const t = new Date(data.updated);
+    const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+    const ago = mins < 1 ? '방금' : `${mins}분 전`;
+    document.getElementById('dot').className = 'dot' + (live ? ' live' : '');
+    document.getElementById('updated').textContent =
+      `${live ? '실시간' : '백업'} · ${t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })} 기준 · ${ago}`;
+    btn.disabled = false;
   }
+
+  document.getElementById('filters').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    tierFilter = b.dataset.tier;
+    for (const x of document.querySelectorAll('#filters button')) x.setAttribute('aria-pressed', String(x === b));
+    renderLongtail();
+  });
+
+  document.getElementById('longtail').addEventListener('click', async e => {
+    const b = e.target.closest('.copy');
+    if (!b) return;
+    try {
+      await navigator.clipboard.writeText(b.dataset.kw);
+      b.textContent = '복사됨';
+    } catch {
+      b.textContent = '실패';
+    }
+    setTimeout(() => { b.textContent = '복사'; }, 1200);
+  });
 
   document.getElementById('refresh').addEventListener('click', load);
   load();
