@@ -28,7 +28,16 @@ import make_video as mv  # noqa: E402
 W, H, FPS = mv.W, mv.H, mv.FPS
 FRAMES = os.environ.get("FRAMES_DIR", os.path.join(HERE, "_frames"))
 OUT = os.path.join(os.path.dirname(HERE), "animal_numbers_3d.mp4")
-SS = float(os.environ.get("SS", "1.5"))
+GPU = os.environ.get("GPU") == "1"
+SS = float(os.environ.get("SS", "2.0" if GPU else "1.5"))
+
+
+def ffmpeg_exe():
+    import shutil
+    if shutil.which("ffmpeg"):
+        return "ffmpeg"
+    import imageio_ffmpeg  # pip install imageio-ffmpeg (윈도우용 ffmpeg 포함)
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 def to_hex(c):
@@ -36,7 +45,7 @@ def to_hex(c):
 
 
 def write_config():
-    cfg = dict(fps=FPS, ss=SS, intro=mv.INTRO, outro=mv.OUTRO, head=mv.HEAD, step=mv.STEP, tail=mv.TAIL,
+    cfg = dict(fps=FPS, ss=SS, hq=GPU, intro=mv.INTRO, outro=mv.OUTRO, head=mv.HEAD, step=mv.STEP, tail=mv.TAIL,
                fly=0.55, scenes=[list(s) for s in mv.SCENES],
                numColors=[to_hex(c) for c in mv.NUM_COLORS],
                skies=[[to_hex(lighten_sky(a, 0.0)), to_hex(b)] for a, b in mv.SKIES])
@@ -240,7 +249,7 @@ def main():
             si = max(i for i, s in enumerate(mv.STARTS) if s <= T + 1e-9)
             if si > 0 and T - mv.STARTS[si] < mv.WIPE:
                 need.add(int(round(mv.STARTS[si] * FPS)) - 1)
-        subprocess.run(["node", os.path.join(HERE, "render.js"), FRAMES, "2", ",".join(map(str, sorted(need)))], check=True)
+        subprocess.run(["node", os.path.join(HERE, "render.js"), FRAMES, os.environ.get("WORKERS", "2"), ",".join(map(str, sorted(need)))], check=True)
         for fi in frames:
             b = compose_frame(fi)
             Image.frombuffer("RGBX", (W, H), b, "raw", "BGRX").convert("RGB").save(os.path.join(outdir, f"q{fi:05d}.png"))
@@ -255,7 +264,7 @@ def main():
         w.setsampwidth(2)
         w.setframerate(mv.SR)
         w.writeframes(mv.build_audio().tobytes())
-    cmd = ["ffmpeg", "-y", "-loglevel", "error",
+    cmd = [ffmpeg_exe(), "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "bgr0", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
            "-i", wav_path,
            "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p",

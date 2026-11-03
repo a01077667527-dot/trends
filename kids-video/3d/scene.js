@@ -33,6 +33,15 @@ octx.imageSmoothingEnabled = true;
 octx.imageSmoothingQuality = 'high';
 
 const scene = new THREE.Scene();
+const gl = renderer.getContext();
+const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+window.GL_RENDERER = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'unknown';
+if (CFG.hq) { // 그래픽카드 모드: 환경광 반사(IBL)
+  const { RoomEnvironment } = await import('./vendor/addons/RoomEnvironment.js');
+  const pm = new THREE.PMREMGenerator(renderer);
+  scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.35;
+}
 const camera = new THREE.PerspectiveCamera(30, OW / OH, 0.1, 400);
 
 // ------------------------------------------------------------------ materials

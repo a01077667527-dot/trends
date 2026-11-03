@@ -25,12 +25,17 @@ const server = http.createServer((req, res) => {
   await new Promise(r => server.listen(0, r));
   const url = `http://127.0.0.1:${server.address().port}/scene.html`;
   const launch = async () => {
-    const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+    const gpu = process.env.GPU === '1';
+    const args = gpu
+      ? ['--enable-gpu', '--ignore-gpu-blocklist', '--enable-webgl', process.platform === 'win32' ? '--use-angle=d3d11' : '--use-angle=default']
+      : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+    const b = await chromium.launch({ args, headless: true });
     const p = await b.newPage({ viewport: { width: 640, height: 360 } });
     p.on('pageerror', e => console.error('pageerror', e.message));
     p.on('console', m => { if (m.type() === 'error') console.error('console', m.text()); });
     await p.goto(url);
     await p.waitForFunction('window.ready === true', null, { timeout: 120000 });
+    console.log('GPU renderer:', await p.evaluate('window.GL_RENDERER'));
     return { b, p };
   };
   const first = await launch();
