@@ -5,7 +5,7 @@
 
 사용법:
   python3 shorts.py out/camping2 out/camping2/shorts.mp4
-  옵션: --times 15,15,10  --intro 2  --no-music
+  옵션: --times 15,15,10  --intro 2  --no-music  --no-crop(가로 그림 자르지 않기)
 결과: shorts.mp4 와 같은 폴더에 thumbnail.png 도 저장
 """
 import json, math, os, subprocess, sys, wave
@@ -20,8 +20,22 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MASCOT = os.path.join(HERE, "..", "brand", "watermark_A.png")
 
 # 쇼츠 화면은 아래쪽(제목·채널명)과 오른쪽(좋아요 버튼)이 가려짐 → 핵심은 y<1600, 가운데에
-IMG_AREA = (40, 250, 1000, 760)
-RING = (540, 1300, 165)
+IMG_AREA = (20, 210, 1040, 900)
+CROP_ASPECT = 4 / 3   # 가로로 긴 그림은 정답이 모두 들어가는 선에서 4:3으로 잘라 크게 보여줌
+
+
+def smart_crop(A, B, ans, aspect=CROP_ASPECT, margin=30):
+    w, h = A.size
+    if aspect is None or w / h <= aspect:
+        return A, B, ans
+    cw = round(h * aspect)
+    lo = max(a["x"] + a["r"] for a in ans) + margin - cw    # 왼쪽 끝 가능한 최소
+    hi = min(a["x"] - a["r"] for a in ans) - margin          # 왼쪽 끝 가능한 최대
+    if lo > hi:
+        return A, B, ans                                     # 정답이 다 안 들어가면 자르지 않음
+    x0 = int(min(max((w - cw) / 2, lo, 0), hi, w - cw))      # 가능하면 가운데 기준
+    box = (x0, 0, x0 + cw, h)
+    return A.crop(box), B.crop(box), [dict(a, x=a["x"] - x0) for a in ans]
 
 
 def fit_box(img):
@@ -43,8 +57,8 @@ def paste_img(fr, img, box, radius=24, border=10):
 def frame(img, box, header, color):
     fr = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(fr)
-    d.rounded_rectangle((30, 70, W - 30, 200), 60, fill=color)
-    d.text((W // 2, 135), header, font=F(64), fill="#fff", anchor="mm")
+    d.rounded_rectangle((30, 60, W - 30, 170), 55, fill=color)
+    d.text((W // 2, 115), header, font=F(60), fill="#fff", anchor="mm")
     paste_img(fr, img, box)
     return fr
 
@@ -57,8 +71,8 @@ def thumbnail(img, n):
     d.text((W // 2, 250), "두뇌 건강을 위한", font=F(92), fill="#ffe3a3", anchor="mm")
     d.text((W // 2, 420), "틀린그림 찾기", font=F(150), fill="#fff", anchor="mm",
            stroke_width=8, stroke_fill="#2c6b4e")
-    s = 960 / img.width
-    box = (60, 820, 960, round(img.height * s))
+    s = min(1000 / img.width, 820 / img.height)
+    box = ((W - round(img.width * s)) // 2, 780, round(img.width * s), round(img.height * s))
     paste_img(fr, img, box)
     by = box[1] + box[3] + 90
     d.rounded_rectangle((170, by - 70, W - 170, by + 70), 70, fill=RED)
@@ -69,14 +83,15 @@ def thumbnail(img, n):
     return fr
 
 
-def ring(d, remain, total, label):
-    cx, cy, r = RING
-    d.text((cx, cy - r - 75), label, font=F(66), fill=INK, anchor="mm")
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), outline="#eadfcc", width=30)
+def ring(d, remain, total, label, top):
+    """그림 아래 작은 가로 막대 타이머."""
     col = RED if remain <= 5 else GREEN
+    d.text((90, top + 40), label, font=F(52), fill=INK, anchor="lm")
+    d.text((W - 90, top + 40), f"{max(1, math.ceil(remain))}초", font=F(64), fill=col, anchor="rm")
+    x0, x1, y0 = 90, W - 90, top + 100
+    d.rounded_rectangle((x0, y0, x1, y0 + 34), 17, fill="#eadfcc")
     if remain > 0:
-        d.arc((cx - r, cy - r, cx + r, cy + r), -90, -90 + 360 * remain / total, fill=col, width=30)
-    d.text((cx, cy - 8), str(max(1, math.ceil(remain))), font=F(170), fill=col, anchor="mm")
+        d.rounded_rectangle((x0, y0, x0 + max(34, (x1 - x0) * remain / total), y0 + 34), 17, fill=col)
 
 
 def music(total):
@@ -122,15 +137,18 @@ def audio(path, total, intro, t1, t2, reveal, with_music=True):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(a.tobytes())
 
 
-def render(folder, out, times=(15, 15, 10), intro=2, with_music=True):
+def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True):
     A = Image.open(f"{folder}/base.png").convert("RGB")
     B = Image.open(f"{folder}/b.png").convert("RGB")
     ans = json.load(open(f"{folder}/answers.json"))
+    if crop:
+        A, B, ans = smart_crop(A, B, ans)
     n = len(ans)
     t1, t2, t3 = times
     total = intro + t1 + t2 + t3
     box = fit_box(A)
     sx, sy = box[2] / A.width, box[3] / A.height
+    below = box[1] + box[3] + 40
 
     thumb = thumbnail(A, n)
     thumb.save(os.path.join(os.path.dirname(out), "thumbnail.png"))
@@ -156,12 +174,12 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True):
             fr = thumb
         elif t < intro + t1:
             tt = t - intro
-            fr = f1.copy(); ring(ImageDraw.Draw(fr), t1 - tt, t1, "1단계 · 기억하기")
+            fr = f1.copy(); ring(ImageDraw.Draw(fr), t1 - tt, t1, "1단계 · 기억하기", below)
             if tt < 0.4:
                 fr = Image.blend(fr, thumb, 1 - tt / 0.4)
         elif t < p3:
             tt = t - intro - t1
-            fr = f2.copy(); ring(ImageDraw.Draw(fr), t2 - tt, t2, "2단계 · 찾아보기")
+            fr = f2.copy(); ring(ImageDraw.Draw(fr), t2 - tt, t2, "2단계 · 찾아보기", below)
             if tt < 0.5:  # 그림이 바뀌었다는 신호
                 fr = Image.blend(fr, Image.new("RGB", (W, H), "#ffffff"), 1 - tt / 0.5)
         else:
@@ -176,14 +194,15 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True):
                 bx, by = x + r * 0.72, y - r * 0.72
                 d.ellipse((bx - 28, by - 28, bx + 28, by + 28), fill=RED)
                 d.text((bx, by), str(i + 1), font=F(38), fill="#fff", anchor="mm")
-                ly = box[1] + box[3] + 110 + i * 100
+                ly = below + 60 + i * 95
                 d.ellipse((150, ly - 34, 218, ly + 34), fill=RED)
                 d.text((184, ly), str(i + 1), font=F(42), fill="#fff", anchor="mm")
                 d.text((250, ly), a["label"], font=F(62), fill=INK, anchor="lm")
             if t >= cta_at:
-                d.rounded_rectangle((120, 1420, W - 120, 1590), 40, fill=GREEN)
-                d.text((W // 2, 1475), f"{n}곳 다 찾으셨나요?", font=F(54), fill="#fff", anchor="mm")
-                d.text((W // 2, 1543), "댓글로 알려주세요!", font=F(54), fill="#ffe3a3", anchor="mm")
+                cy = min(below + 60 + n * 95 + 40, 1440)
+                d.rounded_rectangle((120, cy, W - 120, cy + 160), 40, fill=GREEN)
+                d.text((W // 2, cy + 52), f"{n}곳 다 찾으셨나요?", font=F(54), fill="#fff", anchor="mm")
+                d.text((W // 2, cy + 118), "댓글로 알려주세요!", font=F(54), fill="#ffe3a3", anchor="mm")
         ff.stdin.write(fr.tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
@@ -194,4 +213,4 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     times = tuple(int(x) for x in args[args.index("--times") + 1].split(",")) if "--times" in args else (15, 15, 10)
     intro = float(args[args.index("--intro") + 1]) if "--intro" in args else 2
-    render(args[0], args[1], times, intro, "--no-music" not in args)
+    render(args[0], args[1], times, intro, "--no-music" not in args, "--no-crop" not in args)
