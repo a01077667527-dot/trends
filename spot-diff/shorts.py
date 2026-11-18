@@ -54,11 +54,14 @@ def paste_img(fr, img, box, radius=24, border=10):
     fr.paste(img.resize((w, h), Image.LANCZOS), (x, y), mask)
 
 
-def frame(img, box, header, color):
+def frame(img, box, header, color, hy):
     fr = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(fr)
-    d.rounded_rectangle((30, 60, W - 30, 170), 55, fill=color)
-    d.text((W // 2, 115), header, font=F(60), fill="#fff", anchor="mm")
+    d.rounded_rectangle((30, hy - 55, W - 30, hy + 55), 55, fill=color)
+    size = 60
+    while d.textlength(header, font=F(size)) > W - 140:
+        size -= 2
+    d.text((W // 2, hy), header, font=F(size), fill="#fff", anchor="mm")
     paste_img(fr, img, box)
     return fr
 
@@ -83,12 +86,36 @@ def thumbnail(img, n):
     return fr
 
 
+def hourglass(d, cx, cy, f):
+    """모래시계. f = 남은 비율(1→0): 위 모래가 줄고 아래 모래가 쌓임."""
+    hw, hh, neck = 46, 66, 7
+    wood = "#a0693f"
+    d.rounded_rectangle((cx - hw - 12, cy - hh - 16, cx + hw + 12, cy - hh), 6, fill=wood, outline=INK, width=4)
+    d.rounded_rectangle((cx - hw - 12, cy + hh, cx + hw + 12, cy + hh + 16), 6, fill=wood, outline=INK, width=4)
+    top = [(cx - hw, cy - hh), (cx + hw, cy - hh), (cx + neck, cy), (cx - neck, cy)]
+    bot = [(cx - neck, cy), (cx + neck, cy), (cx + hw, cy + hh), (cx - hw, cy + hh)]
+    d.polygon(top, fill="#e6f3fa"); d.polygon(bot, fill="#e6f3fa")
+    sand = "#f2b84b"
+    if f > 0:  # 위쪽: 목 부분부터 남은 만큼
+        ys = cy - (hh - 6) * f
+        wy = neck + (hw - neck) * (cy - ys) / hh
+        d.polygon([(cx - wy, ys), (cx + wy, ys), (cx + neck, cy), (cx - neck, cy)], fill=sand)
+        d.line((cx, cy, cx, cy + hh - 4), fill=sand, width=4)   # 떨어지는 모래
+    hb = (hh - 8) * (1 - f)   # 아래쪽 쌓인 모래 (봉긋하게)
+    if hb > 1:
+        yb = cy + hh - hb
+        wb = neck + (hw - neck) * (yb - cy) / hh
+        d.polygon([(cx - hw, cy + hh), (cx + hw, cy + hh), (cx + wb, yb + hb * .35), (cx, yb), (cx - wb, yb + hb * .35)], fill=sand)
+    d.line(top + [top[0]], fill=INK, width=5, joint="curve"); d.line(bot + [bot[0]], fill=INK, width=5, joint="curve")
+
+
 def ring(d, remain, total, label, top):
-    """그림 아래 작은 가로 막대 타이머."""
+    """그림 아래: 모래시계 + 남은 초 + 가로 막대."""
     col = RED if remain <= 5 else GREEN
-    d.text((90, top + 40), label, font=F(52), fill=INK, anchor="lm")
-    d.text((W - 90, top + 40), f"{max(1, math.ceil(remain))}초", font=F(64), fill=col, anchor="rm")
-    x0, x1, y0 = 90, W - 90, top + 100
+    hourglass(d, 150, top + 90, remain / total)
+    d.text((260, top + 45), label, font=F(52), fill=INK, anchor="lm")
+    d.text((W - 90, top + 45), f"{max(1, math.ceil(remain))}초", font=F(64), fill=col, anchor="rm")
+    x0, x1, y0 = 260, W - 90, top + 105
     d.rounded_rectangle((x0, y0, x1, y0 + 34), 17, fill="#eadfcc")
     if remain > 0:
         d.rounded_rectangle((x0, y0, x0 + max(34, (x1 - x0) * remain / total), y0 + 34), 17, fill=col)
@@ -147,14 +174,20 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
     t1, t2, t3 = times
     total = intro + t1 + t2 + t3
     box = fit_box(A)
+    # 머리띠 + 그림 + 타이머 묶음을 화면 세로 가운데에 (쇼츠 하단 자막 영역 고려해 살짝 위로)
+    group_h = 110 + 40 + box[3] + 40 + 190
+    top = max(30, (H - group_h) // 2 - 40)
+    hy = top + 55
+    box = (box[0], top + 150, box[2], box[3])
     sx, sy = box[2] / A.width, box[3] / A.height
     below = box[1] + box[3] + 40
 
     thumb = thumbnail(A, n)
     thumb.save(os.path.join(os.path.dirname(out), "thumbnail.png"))
-    f1 = frame(A, box, "그림을 잘 기억해 두세요!", GREEN)
-    f2 = frame(B, box, f"무엇이 달라졌을까요? ({n}곳)", ORANGE)
-    f3 = frame(B, box, "정답 공개!", RED)
+    f1 = frame(A, box, "그림을 잘 기억해 두세요!", GREEN, hy)
+    f2 = frame(B, box, f"무엇이 달라졌을까요? ({n}곳)", ORANGE, hy)
+    f3 = frame(B, box, "정답 공개!", RED, hy)
+    f3cta = frame(B, box, "몇 곳 찾으셨나요? 댓글 남겨주세요!", GREEN, hy)
     p3 = intro + t1 + t2
     reveal = [p3 + 0.6 + i * 1.5 for i in range(n)]
     cta_at = total - 4
@@ -183,7 +216,8 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
             if tt < 0.5:  # 그림이 바뀌었다는 신호
                 fr = Image.blend(fr, Image.new("RGB", (W, H), "#ffffff"), 1 - tt / 0.5)
         else:
-            fr = f3.copy(); d = ImageDraw.Draw(fr)
+            fr = (f3cta if t >= cta_at else f3).copy(); d = ImageDraw.Draw(fr)
+            rows = n if n <= 3 else math.ceil(n / 2)
             for i, a in enumerate(ans):
                 if t < reveal[i]:
                     continue
@@ -194,15 +228,11 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
                 bx, by = x + r * 0.72, y - r * 0.72
                 d.ellipse((bx - 28, by - 28, bx + 28, by + 28), fill=RED)
                 d.text((bx, by), str(i + 1), font=F(38), fill="#fff", anchor="mm")
-                ly = below + 60 + i * 95
-                d.ellipse((150, ly - 34, 218, ly + 34), fill=RED)
-                d.text((184, ly), str(i + 1), font=F(42), fill="#fff", anchor="mm")
-                d.text((250, ly), a["label"], font=F(62), fill=INK, anchor="lm")
-            if t >= cta_at:
-                cy = min(below + 60 + n * 95 + 40, 1440)
-                d.rounded_rectangle((120, cy, W - 120, cy + 160), 40, fill=GREEN)
-                d.text((W // 2, cy + 52), f"{n}곳 다 찾으셨나요?", font=F(54), fill="#fff", anchor="mm")
-                d.text((W // 2, cy + 118), "댓글로 알려주세요!", font=F(54), fill="#ffe3a3", anchor="mm")
+                lx = 130 + (i // rows) * 470
+                ly = below + 45 + (i % rows) * 85
+                d.ellipse((lx, ly - 32, lx + 64, ly + 32), fill=RED)
+                d.text((lx + 32, ly), str(i + 1), font=F(40), fill="#fff", anchor="mm")
+                d.text((lx + 90, ly), a["label"], font=F(56), fill=INK, anchor="lm")
         ff.stdin.write(fr.tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
