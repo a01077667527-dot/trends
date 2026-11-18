@@ -124,8 +124,45 @@ def ring(d, remain, total, label, top):
         d.rounded_rectangle((x0, y0, x0 + max(34, (x1 - x0) * remain / total), y0 + 34), 17, fill=col)
 
 
-def music(total):
-    """84BPM 오르골풍: C-Am-F-G 아르페지오 + 부드러운 베이스."""
+def pluck(f, dur, vol):
+    """기타/우쿨렐레 느낌: 높은 배음일수록 빨리 사라지는 소리."""
+    t = np.arange(int(SR * dur)) / SR
+    s = sum(np.sin(2 * np.pi * f * k * t) / k * np.exp(-t * (4 + 3 * k)) for k in range(1, 7))
+    return vol * s * np.minimum(1, t / .004)
+
+
+def music_pluck(total):
+    """104BPM 경쾌한 통통 튀는 기타풍: G-D-Em-C + 베이스 + 살랑 셰이커."""
+    beat = 60 / 104
+    G, D, Em, C = [196.0, 246.9, 293.7], [146.8, 185.0, 220.0], [164.8, 196.0, 246.9], [130.8, 164.8, 196.0]
+    chords = [G, D, Em, C]
+    out = np.zeros(int(SR * (total + 2)))
+    def put(at, sig):
+        i = int(at * SR); j = min(len(out), i + len(sig)); out[i:j] += sig[: j - i]
+    rng = np.random.default_rng(3)
+    hat = rng.standard_normal(int(SR * .05)) * np.exp(-np.arange(int(SR * .05)) / SR / .012)
+    hat = np.diff(hat, prepend=0)  # 고음만 남겨 살랑거리게
+    pattern = [(0, 0), (1, 1), (1.5, 2), (2.5, 1), (3, 2), (3.5, 1)]  # (박, 화음음 번호)
+    t, bar = 0.0, 0
+    while t < total:
+        c = chords[bar % 4]
+        for b, idx in pattern:
+            put(t + b * beat, pluck(c[idx] * 2, 1.0, .22))
+        put(t, pluck(c[0] / 2, 1.6, .35)); put(t + 2 * beat, pluck(c[0] / 2, 1.6, .3))
+        for k in range(8):
+            put(t + (k + .5) * beat / 2 * 1, hat * (.05 if k % 2 else .03))
+        t += beat * 4; bar += 1
+    out = out[: int(SR * total)]
+    fade = int(SR * 1.5)
+    out[:fade] *= np.linspace(0, 1, fade); out[-fade:] *= np.linspace(1, 0, fade)
+    return out
+
+
+def music(total, style="musicbox"):
+    """style: musicbox(잔잔한 오르골, 기본) | pluck(경쾌한 기타풍)"""
+    if style == "pluck":
+        return music_pluck(total)
+    # 84BPM 오르골풍: C-Am-F-G 아르페지오 + 부드러운 베이스
     beat = 60 / 84
     chords = [[261.6, 329.6, 392.0], [220.0, 261.6, 329.6], [174.6, 220.0, 261.6], [196.0, 246.9, 293.7]]
     out = np.zeros(int(SR * (total + 2)))

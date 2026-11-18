@@ -3,6 +3,7 @@
 구성: 인트로(썸네일) 2초 → 찾기 20초(모래시계) → 정답이 하나씩 색칠되며 '딩동' → 댓글 유도
 사용법:
   python3 ws_shorts.py 과일 사과,바나나,포도,수박,딸기,참외 out/ws_fruit [--size 6] [--seed 1] [--time 20]
+  --bgm musicbox|pluck (배경음악 종류)
 결과: out/.../shorts.mp4, thumbnail.png, puzzle.json
 """
 import json, os, subprocess, sys, wave
@@ -67,7 +68,7 @@ def chips(d, words_shown, y0):
         x += tw + 24
 
 
-def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2):
+def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2, bgm="musicbox"):
     os.makedirs(out_dir, exist_ok=True)
     grid, placed = build(words, n, seed)
     k = len(placed)
@@ -104,7 +105,7 @@ def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2):
         put(a_start + i * .12, tone([f, f * 2], .4, .2, .35))
     for r in reveal:
         put(r, np.concatenate([tone([1319, 2637], .3, .2, .45), tone([1047, 2093], .8, .35, .45)]))
-    m = music(total); a[: len(m)] += m / np.abs(m).max() * np.abs(a).max() * .35
+    m = music(total, bgm); a[: len(m)] += m / np.abs(m).max() * np.abs(a).max() * .35
     wav = f"{out_dir}/_a.wav"
     with wave.open(wav, "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
@@ -148,4 +149,4 @@ def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2):
 if __name__ == "__main__":
     a = sys.argv[1:]
     opt = lambda k, d: type(d)(a[a.index(k) + 1]) if k in a else d
-    render(a[0], a[1].split(","), a[2], opt("--size", 6), opt("--seed", 1), opt("--time", 20))
+    render(a[0], a[1].split(","), a[2], opt("--size", 6), opt("--seed", 1), opt("--time", 20), bgm=opt("--bgm", "musicbox"))
