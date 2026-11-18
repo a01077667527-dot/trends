@@ -18,7 +18,7 @@ W, H, FPS = 1080, 1920, 30
 BG, INK, GREEN, ORANGE, RED = "#fff3dc", "#3a2a2a", "#3f8f6a", "#e08a2e", "#e53935"
 F = lambda s: ImageFont.truetype(FONT, s)
 HERE = os.path.dirname(os.path.abspath(__file__))
-MASCOT = os.path.join(HERE, "..", "brand", "watermark_A.png")
+MASCOT = os.path.join(HERE, "..", "brand", "v2", "logo_A.png")
 
 # 쇼츠 화면은 아래쪽(제목·채널명)과 오른쪽(좋아요 버튼)이 가려짐 → 핵심은 y<1600, 가운데에
 IMG_AREA = (20, 210, 1040, 900)
@@ -82,8 +82,10 @@ def thumbnail(img, n):
     d.rounded_rectangle((170, by - 70, W - 170, by + 70), 70, fill=RED)
     d.text((W // 2, by), f"달라진 곳 {n}곳, 찾아보세요!", font=F(64), fill="#fff", anchor="mm")
     if os.path.exists(MASCOT):
-        m = Image.open(MASCOT).convert("RGBA").resize((260, 260), Image.LANCZOS)
-        fr.paste(m, (W - 300, box[1] - 170), m)
+        m = Image.open(MASCOT).convert("RGB").resize((260, 260), Image.LANCZOS)
+        mask = Image.new("L", (260, 260), 0); ImageDraw.Draw(mask).ellipse((0, 0, 260, 260), fill=255)
+        d.ellipse((W - 308, box[1] - 178, W - 32, box[1] + 98), fill="#ffffff")
+        fr.paste(m, (W - 300, box[1] - 170), mask)
     return fr
 
 
