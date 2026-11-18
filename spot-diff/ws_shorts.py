@@ -22,7 +22,7 @@ BG = "#fff8ec"
 
 def board(grid, shown, cell_hi=None):
     n = len(grid)
-    cell = min(150, 980 // n)
+    cell = min(150, 900 // n)   # 큰 판도 쇼츠 하단 가림 영역 위로
     x0 = (W - cell * n) // 2
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
