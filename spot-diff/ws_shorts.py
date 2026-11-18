@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw
 from wordsearch import build, F, W, H, INK, RED, GREEN, ORANGE, COLORS
 from shorts import hourglass, music, tone, SR, FPS
 import math
+import outro
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MASCOT = os.path.join(HERE, "..", "brand", "v2", "logo_A.png")
@@ -87,15 +88,16 @@ def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2):
     titles(d, theme, k, "찾아보세요!", RED)
     a_start = intro + find
     reveal = [a_start + 0.8 + i * 1.2 for i in range(k)]
-    total = reveal[-1] + 4.5
-    cta_at = total - 3.5
+    ans_end = reveal[-1] + 4.5
+    total = ans_end + outro.OUTRO_SEC
+    cta_at = ans_end - 3.5
 
     # 소리
     a = np.zeros(int(SR * (total + 1)))
     def put(at, sig):
         i = int(at * SR); j = min(len(a), i + len(sig)); a[i:j] += sig[: j - i]
     chime = lambda: np.concatenate([tone([1047, 2094], .25, .15), tone([1319, 2638], .6, .3)])
-    put(0.1, chime()); put(intro, chime())
+    put(0.1, chime()); put(intro, chime()); put(ans_end, outro.sound(tone))
     for s in range(find - 5, find):
         put(intro + s, tone([1200 if s < find - 1 else 1600], .08, .03, .35))
     for i, f in enumerate([523, 659, 784]):
@@ -116,7 +118,9 @@ def render(theme, words, out_dir, n=6, seed=1, find=20, intro=2):
     cache = {}
     for f in range(int(total * FPS)):
         t = f / FPS
-        if t < intro:
+        if t >= ans_end:
+            fr = outro.frame(t - ans_end)
+        elif t < intro:
             fr = thumb
         elif t < a_start:
             fr = base.copy(); timer(ImageDraw.Draw(fr), a_start - t, find, bottom + 40)

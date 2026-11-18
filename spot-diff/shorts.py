@@ -12,6 +12,7 @@ import json, math, os, subprocess, sys, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from video import tone, FONT, SR
+import outro
 
 W, H, FPS = 1080, 1920, 30
 BG, INK, GREEN, ORANGE, RED = "#fff3dc", "#3a2a2a", "#3f8f6a", "#e08a2e", "#e53935"
@@ -142,12 +143,14 @@ def music(total):
     return out
 
 
-def audio(path, total, intro, t1, t2, reveal, with_music=True):
+def audio(path, total, intro, t1, t2, reveal, with_music=True, outro_at=None):
     a = np.zeros(int(SR * (total + 1)))
     def put(at, sig):
         i = int(at * SR); j = min(len(a), i + len(sig)); a[i:j] += sig[: j - i]
     chime = lambda: np.concatenate([tone([1047, 2094], .25, .15), tone([1319, 2638], .6, .3)])
     put(0.1, chime()); put(intro, chime()); put(intro + t1, chime())
+    if outro_at is not None:
+        put(outro_at, outro.sound(tone))
     for start, dur in ((intro, t1), (intro + t1, t2)):
         for s in range(dur - 5, dur):
             put(start + s, tone([1200 if s < dur - 1 else 1600], .08, .03, .35))
@@ -172,7 +175,8 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
         A, B, ans = smart_crop(A, B, ans)
     n = len(ans)
     t1, t2, t3 = times
-    total = intro + t1 + t2 + t3
+    ans_end = intro + t1 + t2 + t3
+    total = ans_end + outro.OUTRO_SEC
     box = fit_box(A)
     # 머리띠 + 그림 + 타이머 묶음을 화면 세로 가운데에 (쇼츠 하단 자막 영역 고려해 살짝 위로)
     group_h = 110 + 40 + box[3] + 40 + 190
@@ -190,10 +194,10 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
     f3cta = frame(B, box, "몇 곳 찾으셨나요? 댓글 남겨주세요!", GREEN, hy)
     p3 = intro + t1 + t2
     reveal = [p3 + 0.6 + i * 1.5 for i in range(n)]
-    cta_at = total - 4
+    cta_at = ans_end - 4
 
     wav = out + ".wav"
-    audio(wav, total, intro, t1, t2, reveal, with_music)
+    audio(wav, total, intro, t1, t2, reveal, with_music, outro_at=ans_end)
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
          "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-i", wav,
@@ -203,7 +207,9 @@ def render(folder, out, times=(15, 15, 10), intro=2, with_music=True, crop=True)
 
     for k in range(int(total * FPS)):
         t = k / FPS
-        if t < intro:
+        if t >= ans_end:
+            fr = outro.frame(t - ans_end)
+        elif t < intro:
             fr = thumb
         elif t < intro + t1:
             tt = t - intro
