@@ -1,0 +1,12 @@
+{
+ "title": "틀린 곳 {n}개를 찾아보세요! 👀",
+ "base_prompt": "A cute hand-drawn children's book illustration of a sunny park playground, soft pastel colors, clean thick brown outlines, flat coloring. Include: a brown bear with a blue backpack waving, a pink bunny holding a blue star balloon, a yellow duck on a red swing set, a purple cat painting with a palette, a blue squirrel holding an acorn, a green frog by a small pond, a tulip flower bed, a wooden bench, a pink slide, two big trees with a small bird on a branch, fluffy clouds and a smiling sun. Rich detail, many small props, no text, no border, single image.",
+ "edits": [
+  {"label": "풍선 색", "instruction": "Change the color of the bunny's star balloon from blue to yellow."},
+  {"label": "새 색깔", "instruction": "Change the color of the small bird on the tree branch to bright blue."},
+  {"label": "도토리", "instruction": "Remove the acorn from the squirrel's hands so its hands are empty."},
+  {"label": "가방 색", "instruction": "Change the bear's backpack color from blue to red."},
+  {"label": "튤립 하나", "instruction": "Remove exactly one tulip from the flower bed, leaving soil in its place."},
+  {"label": "개구리 왕관", "instruction": "Put a tiny golden crown on the frog's head."}
+ ]
+}
