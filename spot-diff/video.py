@@ -23,7 +23,15 @@ FONT_PATHS = ["/usr/share/fonts/truetype/nanum/NanumSquareRoundB.ttf",
 FONT = next(p for p in FONT_PATHS if os.path.exists(p))
 F = lambda s: ImageFont.truetype(FONT, s)
 
-IMG_BOX = (60, 150, 1200, 900)   # x, y, w, h
+IMG_AREA = (60, 150, 1200, 900)  # 그림이 들어갈 영역 x, y, w, h (비율 유지해 가운데 맞춤)
+IMG_BOX = IMG_AREA
+
+
+def fit_box(img):
+    x, y, w, h = IMG_AREA
+    s = min(w / img.width, h / img.height)
+    bw, bh = round(img.width * s), round(img.height * s)
+    return (x + (w - bw) // 2, y + (h - bh) // 2, bw, bh)
 PANEL_X = 1590                    # 오른쪽 패널 가운데
 
 
@@ -58,6 +66,8 @@ def render(folder, out, times=(15, 15, 10), title=None):
     A = Image.open(f"{folder}/base.png").convert("RGB")
     B = Image.open(f"{folder}/b.png").convert("RGB")
     ans = json.load(open(f"{folder}/answers.json"))
+    global IMG_BOX
+    IMG_BOX = fit_box(A)
     n = len(ans)
     t1, t2, t3 = times
     total = t1 + t2 + t3
