@@ -99,7 +99,53 @@ def sentence_starts(voice, k=3):
     return sorted(e + DELAY for _, e in pauses)
 
 
-def render(out, n=5, voice=None):
+_BG = None
+
+
+def frame_bg(t, n, st, bg):
+    """인트로 그림을 배경으로: 천천히 확대 + 장면별 겹쳐 띄우기."""
+    z = 1 + 0.04 * min(1, t / 10)
+    w, h = int(W * z), int(H * z)
+    fr = bg.resize((w, h), Image.LANCZOS).crop(((w - W) // 2, (h - H) // 2, (w - W) // 2 + W, (h - H) // 2 + H))
+    d = ImageDraw.Draw(fr)
+    cy = 412   # 그림 속 "안녕하세요!" 자리 (캐릭터 위)
+    if st >= 3:   # 그림 속 '안녕하세요!' 줄을 하늘색 판으로 덮고 그 위에 띄움
+        ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ImageDraw.Draw(ov).rounded_rectangle((440, 280, 1480, 522), 100, fill=(250, 250, 238, 255))
+        fr.paste(ov, (0, 0), ov); d = ImageDraw.Draw(fr)
+    if 3 <= st < 6:      # 오늘의 문제 수 배지
+        p = 1 + .1 * max(0, 1 - (st - 3) / .3)
+        tw = d.textlength(f"오늘의 틀린그림 {n}문제", font=F(int(76 * p))) / 2 + 60 * p
+        d.rounded_rectangle((W / 2 - tw, cy - 80 * p, W / 2 + tw, cy + 80 * p), 80 * p, fill=RED,
+                            outline="#fff", width=8)
+        d.text((W / 2, cy), f"오늘의 틀린그림 {n}문제", font=F(int(76 * p)), fill="#fff", anchor="mm")
+    elif 6 <= st < 9:    # 구독·좋아요
+        for k, (label, col, x) in enumerate((("구독", RED, W / 2 - 250), ("좋아요", BLUE, W / 2 + 250))):
+            t0 = 6.8 + k * .9
+            on = st > t0
+            p = 1 + .1 * max(0, 1 - (st - t0) / .25) if on else 1
+            bw, bh = 400 * p, 140 * p
+            d.rounded_rectangle((x - bw / 2, cy - bh / 2, x + bw / 2, cy + bh / 2), bh / 2,
+                                fill=col if on else "#9e9e9e", outline="#fff", width=8)
+            tx = x - (28 * p if on else 0)
+            d.text((tx, cy), label, font=F(int(72 * p)), fill="#fff", anchor="mm")
+            if on:
+                ex = tx + d.textlength(label, font=F(int(72 * p))) / 2 + 22 * p
+                d.line([(ex, cy), (ex + 16 * p, cy + 18), (ex + 46 * p, cy - 24)], fill="#fff", width=int(10 * p), joint="curve")
+                if st - t0 < .4:
+                    r = 60 + 150 * (st - t0)
+                    d.ellipse((x - r, cy - r, x + r, cy + r), outline="#ffd43b", width=8)
+    elif st >= 9:        # 시작!
+        p = ease((st - 9) / .4)
+        d.rounded_rectangle((W / 2 - 420, cy - 90, W / 2 + 420, cy + 90), 90, fill=GREEN, outline="#fff", width=8)
+        d.text((W / 2, cy), "그럼, 시작해 볼까요?", font=F(int(80 * (.6 + .4 * p))), fill="#fff", anchor="mm")
+    line = [s_ for t0, s_ in LINES if st >= t0][-1].format(k=KOR_NUM.get(n, str(n)))
+    d.rectangle((0, H - 130, W, H), fill="#2b2b2b")
+    d.text((W // 2, H - 65), line, font=F(54), fill="#fff", anchor="mm")
+    return fr
+
+
+def render(out, n=5, voice=None, three=False, bg=None):
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     vlen = 0.0
     if voice:
@@ -108,7 +154,11 @@ def render(out, n=5, voice=None):
     total = max(10.0, vlen + 0.6)
     # 화면 장면(원래 0·3·6·9·10초)을 목소리 문장 시작에 맞춰 구간별로 늘림
     real = [0.0, 3.0, 6.0, 9.0, 10.0]
-    if voice:
+    if voice and three:   # 목소리에 '문제 수' 문장이 없을 때: 인사 문장 중간에 문제 수 배지를 끼움
+        b = sentence_starts(voice, 2)
+        LINES[1] = (3.0, LINES[0][1])   # 자막은 실제 말과 같게
+        real = [0.0, b[0] * 0.5, b[0], b[1], total]
+    elif voice:
         b = sentence_starts(voice)
         if len(b) == 3:
             real = [0.0] + b + [total]
@@ -144,7 +194,10 @@ def render(out, n=5, voice=None):
     mas = (mas[0], mk)
     for f in range(int(total * FPS)):
         t = f / FPS
-        ff.stdin.write(frame(t, n, to_scene(t), mas).tobytes())
+        if bg is not None:
+            ff.stdin.write(frame_bg(t, n, to_scene(t), bg).tobytes())
+        else:
+            ff.stdin.write(frame(t, n, to_scene(t), mas).tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
     print(f"완료: {out} ({total:.1f}초)")
@@ -154,4 +207,5 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     n = int(a[a.index("--n") + 1]) if "--n" in a else 5
     voice = a[a.index("--voice") + 1] if "--voice" in a else None
-    render(a[0], n, voice)
+    bgp = a[a.index("--bg") + 1] if "--bg" in a else None
+    render(a[0], n, voice, "--three" in a, Image.open(bgp).convert("RGB") if bgp else None)

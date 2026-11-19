@@ -43,7 +43,10 @@ def do_remove(A, B, op):
     if op.get("fill_box"):
         m[y0:y1, x0:x1] = 1
     m = cv2.dilate(m, np.ones((7, 7), np.uint8))
-    E = cv2.inpaint(np.ascontiguousarray(B), m * 255, op.get("radius", 6), cv2.INPAINT_TELEA)
+    if op.get("flat"):   # 바탕이 단색이면 바탕색 한 가지로 채움 (번짐 없음)
+        E = B.copy(); E[m.astype(bool)] = bg
+    else:
+        E = cv2.inpaint(np.ascontiguousarray(B), m * 255, op.get("radius", 6), cv2.INPAINT_TELEA)
     return feather(B, E, m.astype(bool), 1), m.astype(bool)
 
 
