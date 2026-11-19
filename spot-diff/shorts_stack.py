@@ -18,10 +18,10 @@ YEL, GRN, PINK, WHITE, RED, LIME = "#ffd43b", "#51cf66", "#f06595", "#ffffff", "
 
 # (위 제목 [(글자, 색)...], 왼쪽 세로 [(글자, 색)...], 아래 안내)
 STYLES = [
-    ([("눈썰미", PINK), (" 챌린지", YEL)], [("숨", YEL), ("은", YEL), ("차", GRN), ("이", GRN), ("3", WHITE), ("곳", WHITE)], "정답은 고정 댓글에 있어요 👇"),
-    ([("매의 눈", YEL), (" 테스트", PINK)], [("어", WHITE), ("디", WHITE), ("가", WHITE), ("달", YEL), ("라", YEL), ("졌", YEL), ("을", GRN), ("까", GRN), ("?", GRN)], "다 찾으셨으면 댓글로 '완료'!"),
-    ([("두뇌", GRN), (" 집중 ", WHITE), ("타임", YEL)], [("3", PINK), ("곳", PINK), ("만", WHITE), ("찾", YEL), ("으", YEL), ("면", YEL), ("합", GRN), ("격", GRN)], "정답은 고정 댓글에서 확인!"),
-    ([("오늘의", YEL), (" 틀린그림", PINK)], [("다", WHITE), ("른", WHITE), ("곳", YEL), ("세", YEL), ("군", GRN), ("데", GRN)], "몇 개 찾으셨는지 댓글로 알려주세요"),
+    ([("눈썰미", PINK), (" 챌린지", YEL)], [("숨", YEL), ("은", YEL), ("차", GRN), ("이", GRN), ("3", WHITE), ("곳", WHITE)], "정답은 댓글에 적어주세요"),
+    ([("매의 눈", YEL), (" 테스트", PINK)], [("어", WHITE), ("디", WHITE), ("가", WHITE), ("달", YEL), ("라", YEL), ("졌", YEL), ("을", GRN), ("까", GRN), ("?", GRN)], "정답은 댓글에 적어주세요"),
+    ([("두뇌", GRN), (" 집중 ", WHITE), ("타임", YEL)], [("3", PINK), ("곳", PINK), ("만", WHITE), ("찾", YEL), ("으", YEL), ("면", YEL), ("합", GRN), ("격", GRN)], "정답은 댓글에 적어주세요"),
+    ([("오늘의", YEL), (" 틀린그림", PINK)], [("다", WHITE), ("른", WHITE), ("곳", YEL), ("세", YEL), ("군", GRN), ("데", GRN)], "정답은 댓글에 적어주세요"),
 ]
 
 
@@ -95,8 +95,9 @@ def render(folder, out, find=30, style=0, reveal=False, bgm="pluck"):
     ansimg = base.copy(); circles(ansimg, len(ans))
     ansimg.crop((col, top - 10, col + iw + 20, bottom + 10)).save(os.path.splitext(out)[0] + "_answer.png")
     open(os.path.splitext(out)[0] + "_comment.txt", "w").write(
-        "📌 정답 공개!\n" + "\n".join(f"{i+1}. {x['label']}" for i, x in enumerate(ans)) +
-        "\n\n몇 개 찾으셨나요? 😊 다 찾으셨다면 '완료'라고 남겨주세요!\n")
+        "📌 찾으신 곳을 댓글에 적어주세요! 😊\n예) ○○ 색이 달라요, ○○이 없어졌어요\n\n"
+        "[참고: 실제 정답 – 나중에 답글로 공개할 때 쓰세요]\n" +
+        "\n".join(f"{i+1}. {x['label']}" for i, x in enumerate(ans)) + "\n")
 
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                            "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-i", wav, "-c:v", "libx264", "-preset", "veryfast",
@@ -118,7 +119,7 @@ def render(folder, out, find=30, style=0, reveal=False, bgm="pluck"):
             yb = bottom + 25
             d.rectangle((0, bottom + 12, W, bottom + 100), fill="#000")   # 아래 안내 글씨 지우고
             d.rounded_rectangle((90, yb, W - 90, yb + 150), 75, fill=RED)
-            d.text((W / 2, yb + 75), "정답은 고정 댓글! 몇 개 찾으셨나요?", font=F(50), fill="#fff", anchor="mm")
+            d.text((W / 2, yb + 75), "정답은 댓글에 적어주세요!", font=F(50), fill="#fff", anchor="mm")
         ff.stdin.write(fr.tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
