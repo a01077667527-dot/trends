@@ -111,7 +111,7 @@ def ending_frame(t, n):
     return fr
 
 
-def render(out_dir, folders, find=60, bgm="musicbox", intro=None, ans_sec=10.0):
+def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0):
     os.makedirs(out_dir, exist_ok=True)
     probs = [load(f) for f in folders]
     n = len(probs)
@@ -210,7 +210,7 @@ def render(out_dir, folders, find=60, bgm="musicbox", intro=None, ans_sec=10.0):
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    opts = {"--time": 60, "--bgm": "musicbox", "--intro": ""}
+    opts = {"--time": 45, "--bgm": "musicbox", "--intro": ""}
     rest = []
     i = 0
     while i < len(a):
