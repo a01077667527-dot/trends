@@ -85,6 +85,20 @@ def frame(t, n, scale_t, mas):
     return fr
 
 
+DELAY = 0.3  # 목소리 시작 지연
+
+
+def sentence_starts(voice, k=3):
+    """목소리에서 가장 긴 쉼 k개를 찾아 2~4번째 문장 시작 시각(영상 기준)을 돌려줌."""
+    log = subprocess.run(["ffmpeg", "-i", voice, "-af", "silencedetect=noise=-32dB:d=0.15", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    import re
+    st = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", log)]
+    en = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", log)]
+    pauses = sorted(zip(st, en), key=lambda p: p[0] - p[1])[:k]   # 긴 쉼 순
+    return sorted(e + DELAY for _, e in pauses)
+
+
 def render(out, n=5, voice=None):
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     vlen = 0.0
@@ -92,15 +106,25 @@ def render(out, n=5, voice=None):
         vlen = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                                               "-of", "csv=p=0", voice]).decode().strip())
     total = max(10.0, vlen + 0.6)
-    # 효과음 + 음악 (원래 10초 기준 시각을 total로 늘림)
-    k = total / 10
+    # 화면 장면(원래 0·3·6·9·10초)을 목소리 문장 시작에 맞춰 구간별로 늘림
+    real = [0.0, 3.0, 6.0, 9.0, 10.0]
+    if voice:
+        b = sentence_starts(voice)
+        if len(b) == 3:
+            real = [0.0] + b + [total]
+        else:
+            real = [x * total / 10 for x in real]
+    scene = [0.0, 3.0, 6.0, 9.0, 10.0]
+    to_scene = lambda t: float(np.interp(t, real, scene))
+    to_real = lambda x: float(np.interp(x, scene, real))
+    print("문장 시작(초):", [round(x, 2) for x in real[1:4]])
     a = np.zeros(int(SR * (total + 1)))
     def put(at, sig):
         i = int(at * SR); j = min(len(a), i + len(sig)); a[i:j] += sig[: j - i]
     put(.1, np.concatenate([tone([1047, 2094], .25, .15), tone([1319, 2638], .6, .3)]))
-    put(3 * k, np.concatenate([tone([784, 1568], .15, .1, .4), tone([1047, 2094], .4, .2, .4)]))
-    put((6.8) * k, tone([1568, 3136], .3, .15, .45)); put((7.7) * k, tone([1568, 3136], .3, .15, .45))
-    put(9 * k, np.concatenate([tone([784, 1568], .15, .1, .4), tone([1047, 2094], .2, .12, .4), tone([1568, 3136], .6, .3, .4)]))
+    put(to_real(3), np.concatenate([tone([784, 1568], .15, .1, .4), tone([1047, 2094], .4, .2, .4)]))
+    put(to_real(6.8), tone([1568, 3136], .3, .15, .45)); put(to_real(7.7), tone([1568, 3136], .3, .15, .45))
+    put(to_real(9), np.concatenate([tone([784, 1568], .15, .1, .4), tone([1047, 2094], .2, .12, .4), tone([1568, 3136], .6, .3, .4)]))
     m = music(total, "pluck"); a[: len(m)] += m / np.abs(m).max() * np.abs(a).max() * (.18 if voice else .35)
     a = a / np.abs(a).max() * .6
     wav = out + ".bg.wav"
@@ -110,7 +134,7 @@ def render(out, n=5, voice=None):
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-r", str(FPS), "-i", "-", "-i", wav]
     if voice:  # 목소리를 0.3초 뒤에 시작, 배경과 섞기
-        cmd += ["-i", voice, "-filter_complex", "[2:a]adelay=300|300,volume=1.6[v];[1:a][v]amix=inputs=2:duration=first:normalize=0[a]",
+        cmd += ["-i", voice, "-filter_complex", f"[2:a]adelay={int(DELAY*1000)}|{int(DELAY*1000)},volume=1.6[v];[1:a][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.89[a]",
                 "-map", "0:v", "-map", "[a]"]
     cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac",
             "-b:a", "160k", "-shortest", "-movflags", "+faststart", out]
@@ -120,7 +144,7 @@ def render(out, n=5, voice=None):
     mas = (mas[0], mk)
     for f in range(int(total * FPS)):
         t = f / FPS
-        ff.stdin.write(frame(t, n, t / k, mas).tobytes())
+        ff.stdin.write(frame(t, n, to_scene(t), mas).tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
     print(f"완료: {out} ({total:.1f}초)")
