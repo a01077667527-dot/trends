@@ -4,7 +4,7 @@
 문제 수 × 찾기 시간을 조절해 8분 이상(중간 광고 가능)으로 맞추기 좋음.
 
 사용법:
-  python3 longform.py out/long1 out/camping2 out/camping3 out/ocean out/space [--time 90] [--bgm musicbox|pluck]
+  python3 longform.py out/long1 out/L1 out/L2 ... [--time 60] [--bgm musicbox|pluck] [--intro out/intro/intro_A_voice.mp4]
   각 문제 폴더에는 base.png, b.png, answers.json 이 있어야 함 (edit_*.py 결과)
 결과: out/long1/long.mp4, thumbnail.png
 """
@@ -33,7 +33,7 @@ def load(folder):
     A = Image.open(f"{folder}/base.png").convert("RGB")
     B = Image.open(f"{folder}/b.png").convert("RGB")
     ans = json.load(open(f"{folder}/answers.json"))
-    for asp in (1.05, 1.2, 4 / 3):          # 좌우 칸에 꽉 차도록, 정답이 다 들어가는 선에서 자르기
+    for asp in (4 / 3,):                    # 양옆을 조금만 잘라 크게 (정답이 다 들어갈 때만)
         A2, B2, ans2 = smart_crop(A, B, ans, aspect=asp)
         if A2.size != A.size:
             return A2, B2, ans2
@@ -111,11 +111,11 @@ def ending_frame(t, n):
     return fr
 
 
-def render(out_dir, folders, find=90, bgm="musicbox"):
+def render(out_dir, folders, find=60, bgm="musicbox", intro=None, ans_sec=10.0):
     os.makedirs(out_dir, exist_ok=True)
     probs = [load(f) for f in folders]
     n = len(probs)
-    INTRO, CARD, ANS, END = 5.0, 2.0, 10.0, 8.0
+    INTRO, CARD, ANS, END = 0.0, 1.5, ans_sec, 8.0   # 인트로는 따로 만든 영상(목소리 포함)을 앞에 이어 붙임
     seg = CARD + find + ANS
     total = INTRO + n * seg + END
     print(f"문제 {n}개 · 찾기 {find}초 → 총 {total/60:.1f}분" + ("" if total >= 480 else "  (8분 미만: 중간 광고 불가)"))
@@ -126,7 +126,6 @@ def render(out_dir, folders, find=90, bgm="musicbox"):
         i = int(at * SR); j = min(len(a), i + len(sig)); a[i:j] += sig[: j - i]
     chime = lambda: np.concatenate([tone([1047, 2094], .25, .15), tone([1319, 2638], .6, .3)])
     ding = lambda: np.concatenate([tone([1319, 2637], .3, .2, .45), tone([1047, 2093], .8, .35, .45)])
-    put(0.1, chime()); put(1.2, tone([1568, 3136], .3, .15, .4)); put(2.0, tone([1568, 3136], .3, .15, .4))
     reveals = []
     for i in range(n):
         s0 = INTRO + i * seg
@@ -137,7 +136,7 @@ def render(out_dir, folders, find=90, bgm="musicbox"):
         ra = s0 + CARD + find
         for k, f in enumerate([523, 659, 784]):
             put(ra + k * .12, tone([f, f * 2], .4, .2, .35))
-        rv = [ra + 0.8 + k * 1.6 for k in range(len(probs[i][2]))]
+        rv = [ra + 0.8 + k * 1.2 for k in range(len(probs[i][2]))]
         reveals.append(rv)
         for r in rv:
             put(r, ding())
@@ -160,7 +159,7 @@ def render(out_dir, folders, find=90, bgm="musicbox"):
     d.text((1177, 200), f"{n}문제", font=F(46), fill="#fff", anchor="mm")
     th.save(f"{out_dir}/thumbnail.png")
 
-    out = f"{out_dir}/long.mp4"
+    out = f"{out_dir}/body.mp4" if intro else f"{out_dir}/long.mp4"
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                            "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-i", wav, "-c:v", "libx264",
                            "-preset", "veryfast", "-crf", "22", "-tune", "stillimage", "-pix_fmt", "yuv420p",
@@ -191,20 +190,27 @@ def render(out_dir, folders, find=90, bgm="musicbox"):
                     if t < reveals[i][j]:
                         continue
                     pop = 1 + 0.4 * max(0.0, 1 - (t - reveals[i][j]) / 0.3)
-                    for bx in boxes:                      # 양쪽 그림 모두에 동그라미
+                    for bx in boxes:                      # 양쪽 그림 모두에 동그라미만
                         x, y, r = bx[0] + a_["x"] * s, bx[1] + a_["y"] * s, max(a_["r"] * s, 40) * pop
-                        d.ellipse((x - r, y - r, x + r, y + r), outline=RED, width=9)
-                        d.ellipse((x + r * .72 - 24, y - r * .72 - 24, x + r * .72 + 24, y - r * .72 + 24), fill=RED)
-                        d.text((x + r * .72, y - r * .72), str(j + 1), font=F(32), fill="#fff", anchor="mm")
+                        d.ellipse((x - r, y - r, x + r, y + r), outline=RED, width=10)
         ff.stdin.write(fr.tobytes())
     ff.stdin.close(); ff.wait()
     os.remove(wav)
+    if intro:  # 인트로(목소리) + 본편 이어 붙이기
+        final = f"{out_dir}/long.mp4"
+        fc = ("[0:v]fps=15,scale=1920:1080,format=yuv420p,setsar=1[v0];[1:v]fps=15,format=yuv420p,setsar=1[v1];"
+              "[0:a]aresample=44100,aformat=channel_layouts=mono[a0];[1:a]aresample=44100,aformat=channel_layouts=mono[a1];"
+              "[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", intro, "-i", out, "-filter_complex", fc,
+                        "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+                        "-tune", "stillimage", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", final], check=True)
+        os.remove(out); out = final
     print("완료:", out)
 
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    opts = {"--time": 90, "--bgm": "musicbox"}
+    opts = {"--time": 60, "--bgm": "musicbox", "--intro": ""}
     rest = []
     i = 0
     while i < len(a):
@@ -212,4 +218,4 @@ if __name__ == "__main__":
             opts[a[i]] = type(opts[a[i]])(a[i + 1]); i += 2
         else:
             rest.append(a[i]); i += 1
-    render(rest[0], rest[1:], opts["--time"], opts["--bgm"])
+    render(rest[0], rest[1:], opts["--time"], opts["--bgm"], opts["--intro"] or None)
