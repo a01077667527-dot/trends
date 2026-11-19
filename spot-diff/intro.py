@@ -134,7 +134,7 @@ def render(out, n=5, voice=None):
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-r", str(FPS), "-i", "-", "-i", wav]
     if voice:  # 목소리를 0.3초 뒤에 시작, 배경과 섞기
-        cmd += ["-i", voice, "-filter_complex", f"[2:a]adelay={int(DELAY*1000)}|{int(DELAY*1000)},volume=1.3[v];[1:a][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.7[a]",
+        cmd += ["-i", voice, "-filter_complex", f"[2:a]adelay={int(DELAY*1000)}|{int(DELAY*1000)},volume=1.3[v];[1:a][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.7:level=0[a]",
                 "-map", "0:v", "-map", "[a]"]
     cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac",
             "-b:a", "160k", "-shortest", "-movflags", "+faststart", out]
