@@ -32,6 +32,7 @@ def smart_crop(A, B, ans, aspect=CROP_ASPECT, margin=30):
     cw = round(h * aspect)
     lo = max(a["x"] + a["r"] for a in ans) + margin - cw    # 왼쪽 끝 가능한 최소
     hi = min(a["x"] - a["r"] for a in ans) - margin          # 왼쪽 끝 가능한 최대
+    lo, hi = max(lo, 0), min(hi, w - cw)                     # 그림 밖으로 나가지 않게
     if lo > hi:
         return A, B, ans                                     # 정답이 다 안 들어가면 자르지 않음
     x0 = int(min(max((w - cw) / 2, lo, 0), hi, w - cw))      # 가능하면 가운데 기준

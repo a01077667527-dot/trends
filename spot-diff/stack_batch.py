@@ -35,9 +35,9 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "C":   # 클로즈업 세트
         PREFIX, OUTDIR = "C", "out/stack_c"
-        NAMES[:5] = ["벤치할아버지", "귤까는할머니", "붕어빵", "고추따기", "파마"]
-        EMO[:5] = ["📰", "🍊", "🐟", "🌶️", "💇"]
-    n = 5 if PREFIX == "C" else 10
+        NAMES[:] = ["벤치할아버지", "귤까는할머니", "붕어빵", "고추따기", "파마", "마루수박", "비오는정류장", "강아지산책", "된장찌개", "찜질방"]
+        EMO[:] = ["📰", "🍊", "🐟", "🌶️", "💇", "🍉", "☔", "🐶", "🍲", "🥚"]
+    n = 10
     with ProcessPoolExecutor(4, initializer=lambda p, o, nm, em: globals().update(PREFIX=p, OUTDIR=o, NAMES=nm, EMO=em),
                              initargs=(PREFIX, OUTDIR, NAMES, EMO)) as ex:
         print(list(ex.map(job, range(n))))
