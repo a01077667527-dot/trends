@@ -1,0 +1,45 @@
+[
+ {
+  "type": "hue",
+  "label": "모자 띠 색",
+  "box": [
+   405,
+   95,
+   615,
+   145
+  ],
+  "hue": [
+   300,
+   360
+  ],
+  "smin": 0.15,
+  "vmax": 140,
+  "shift": -120,
+  "sat": 1.6
+ },
+ {
+  "type": "remove",
+  "label": "조끼 단추 하나",
+  "box": [
+   520,
+   402,
+   537,
+   420
+  ],
+  "thresh": 30,
+  "radius": 4
+ },
+ {
+  "type": "remove",
+  "label": "조끼 주머니",
+  "box": [
+   562,
+   333,
+   618,
+   388
+  ],
+  "thresh": 25,
+  "flat": true,
+  "fill_box": true
+ }
+]

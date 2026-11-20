@@ -1,0 +1,5 @@
+[
+ {"type":"remove","label":"잠자리 한 마리","box":[90,134,136,174],"thresh":35,"radius":6},
+ {"type":"hue","label":"바닥 고추 색","box":[50,620,142,678],"hue":[345,25],"smin":0.4,"shift":105,"sat":0.8},
+ {"type":"hue","label":"지붕 색","box":[798,58,1024,138],"hue":[10,40],"smin":0.2,"vmax":200,"shift":190}
+]

@@ -18,10 +18,13 @@ DESC = """🧠 두뇌 건강 강화 프로젝트 – {n} 편
 
 #틀린그림찾기 #다른그림찾기 #두뇌운동 #집중력 #두뇌게임 #뇌건강 #shorts"""
 
+PREFIX, OUTDIR = "L", "out/stack"
+
+
 def job(i):
-    os.makedirs("out/stack", exist_ok=True)
-    out = f"out/stack/{i+1:02d}_{NAMES[i]}.mp4"
-    render(f"out/L{i+1}", out, 30, style=i, bgm=["pluck", "musicbox"][i % 2])
+    os.makedirs(OUTDIR, exist_ok=True)
+    out = f"{OUTDIR}/{i+1:02d}_{NAMES[i]}.mp4"
+    render(f"out/{PREFIX}{i+1}", out, 30, style=i, bgm=["pluck", "musicbox"][i % 2])
     title = TITLES[i % len(TITLES)].format(e=EMO[i]) + " #shorts"
     comment = open(out[:-4] + "_comment.txt").read()
     open(out[:-4] + "_업로드.txt", "w").write(f"[제목]\n{title}\n\n[설명]\n{DESC.format(n=NAMES[i])}\n\n[고정 댓글]\n{comment}")
@@ -29,5 +32,12 @@ def job(i):
     return out
 
 if __name__ == "__main__":
-    with ProcessPoolExecutor(4) as ex:
-        print(list(ex.map(job, range(10))))
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "C":   # 클로즈업 세트
+        PREFIX, OUTDIR = "C", "out/stack_c"
+        NAMES[:5] = ["벤치할아버지", "귤까는할머니", "붕어빵", "고추따기", "파마"]
+        EMO[:5] = ["📰", "🍊", "🐟", "🌶️", "💇"]
+    n = 5 if PREFIX == "C" else 10
+    with ProcessPoolExecutor(4, initializer=lambda p, o, nm, em: globals().update(PREFIX=p, OUTDIR=o, NAMES=nm, EMO=em),
+                             initargs=(PREFIX, OUTDIR, NAMES, EMO)) as ex:
+        print(list(ex.map(job, range(n))))
