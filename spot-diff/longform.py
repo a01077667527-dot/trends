@@ -112,6 +112,28 @@ def ending_frame(t, n):
 
 
 THUMB_TEXT = "100명 중 100명이 다 찾는다!"
+THUMB_POOL = [  # 영상마다 다른 문구를 순서대로 사용 (thumb_used.json에 기록)
+    "100명 중 100명이 다 찾는다!",
+    "끝까지 다 찾으면 눈썰미 대장!",
+    "마지막 문제에서 다들 멈춥니다",
+    "10문제 다 맞히면 두뇌 나이 30대!",
+    "천천히 보면 누구나 찾아요!",
+    "딱 1개가 안 보인다는 그 문제!",
+    "오늘은 몇 문제나 찾으실까요?",
+    "어제보다 하나 더 찾아보세요!",
+    "엄마 아빠랑 같이 풀어보세요!",
+    "다 찾으셨다면 댓글로 자랑하기!",
+]
+
+
+def next_thumb_text(path=os.path.join(HERE, "thumb_used.json")):
+    import json as _j
+    used = _j.load(open(path)) if os.path.exists(path) else []
+    left = [t for t in THUMB_POOL if t not in used] or THUMB_POOL
+    pick = left[0]
+    used = (used + [pick])[-len(THUMB_POOL) + 1:]
+    _j.dump(used, open(path, "w"), ensure_ascii=False, indent=1)
+    return pick
 
 
 def make_thumb(probs, out_dir, text=THUMB_TEXT):
@@ -132,7 +154,7 @@ def make_thumb(probs, out_dir, text=THUMB_TEXT):
     th.save(f"{out_dir}/thumbnail.png")
 
 
-def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0):
+def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0, thumb_text=None):
     os.makedirs(out_dir, exist_ok=True)
     probs = [load(f) for f in folders]
     n = len(probs)
@@ -168,7 +190,7 @@ def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
         w.writeframes((a / np.abs(a).max() * .7 * 32767).astype(np.int16).tobytes())
 
-    make_thumb(probs, out_dir, THUMB_TEXT)
+    make_thumb(probs, out_dir, thumb_text or next_thumb_text())
 
     out = f"{out_dir}/body.mp4" if intro else f"{out_dir}/long.mp4"
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
