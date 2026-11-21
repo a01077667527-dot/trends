@@ -27,6 +27,17 @@ def do_hue(A, B, op):
         m &= A.max(2) >= op["vmin"]
     if op.get("vmax"):
         m &= A.max(2) <= op["vmax"]
+    if op.get("seed"):   # 씨앗 점과 이어진 덩어리만 (옆의 같은 색 물건은 제외)
+        from scipy import ndimage
+        lab, _ = ndimage.label(m)
+        sx, sy = op["seed"]
+        k = lab[sy, sx]
+        if k == 0:   # 씨앗이 선 위 등에 있으면 가장 가까운 덩어리
+            ys, xs = np.nonzero(lab)
+            j = int(np.argmin((xs - sx) ** 2 + (ys - sy) ** 2))
+            k = lab[ys[j], xs[j]]
+        m = lab == k
+        m = ndimage.binary_fill_holes(m) & (m | ndimage.binary_dilation(m, iterations=2))
     B = feather(B, shift_hue(B, m, op["shift"], op.get("sat", 1.0), op.get("light", 1.0)), m, 1)
     return B, m
 
