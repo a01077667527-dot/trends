@@ -111,6 +111,27 @@ def ending_frame(t, n):
     return fr
 
 
+THUMB_TEXT = "100명 중 100명이 다 찾는다!"
+
+
+def make_thumb(probs, out_dir, text=THUMB_TEXT):
+    """썸네일 (레퍼런스 스타일: 빨간 띠 + 노란 글씨 + 좌우 그림 + 문제 수 배지)"""
+    n = len(probs)
+    A0, B0, _ = probs[0]
+    th = Image.new("RGB", (1280, 720), "#fff"); d = ImageDraw.Draw(th)
+    hw = 630; h0 = min(560, round(hw * A0.height / A0.width))
+    th.paste(A0.resize((hw, h0)), (0, 720 - h0)); th.paste(B0.resize((hw, h0)), (650, 720 - h0))
+    d.rectangle((630, 140, 650, 720), fill=BLUE)
+    d.rectangle((0, 0, 1280, 150), fill="#8b1a1a")
+    size = 84
+    while d.textlength(text, font=F(size)) > 1220:
+        size -= 2
+    d.text((640, 75), text, font=F(size), fill=YELLOW, anchor="mm", stroke_width=7, stroke_fill="#000")
+    d.rounded_rectangle((1090, 165, 1265, 235), 18, fill=RED)
+    d.text((1177, 200), f"{n}문제", font=F(46), fill="#fff", anchor="mm")
+    th.save(f"{out_dir}/thumbnail.png")
+
+
 def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0):
     os.makedirs(out_dir, exist_ok=True)
     probs = [load(f) for f in folders]
@@ -147,17 +168,7 @@ def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
         w.writeframes((a / np.abs(a).max() * .7 * 32767).astype(np.int16).tobytes())
 
-    # 썸네일 (레퍼런스 스타일: 빨간 띠 + 노란 글씨 + 좌우 그림 + 문제 수 배지)
-    A0, B0, _ = probs[0]
-    th = Image.new("RGB", (1280, 720), "#fff"); d = ImageDraw.Draw(th)
-    hw = 630; h0 = min(560, round(hw * A0.height / A0.width))
-    th.paste(A0.resize((hw, h0)), (0, 720 - h0)); th.paste(B0.resize((hw, h0)), (650, 720 - h0))
-    d.rectangle((630, 140, 650, 720), fill=BLUE)
-    d.rectangle((0, 0, 1280, 150), fill="#8b1a1a")
-    d.text((640, 75), "10명 중 2명만 다 찾습니다!", font=F(84), fill=YELLOW, anchor="mm", stroke_width=7, stroke_fill="#000")
-    d.rounded_rectangle((1090, 165, 1265, 235), 18, fill=RED)
-    d.text((1177, 200), f"{n}문제", font=F(46), fill="#fff", anchor="mm")
-    th.save(f"{out_dir}/thumbnail.png")
+    make_thumb(probs, out_dir, THUMB_TEXT)
 
     out = f"{out_dir}/body.mp4" if intro else f"{out_dir}/long.mp4"
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
