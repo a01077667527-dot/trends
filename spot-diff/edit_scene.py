@@ -61,11 +61,32 @@ def do_remove(A, B, op):
     return feather(B, E, m.astype(bool), 1), m.astype(bool)
 
 
+def do_tint(A, B, op):
+    """씨앗 점에서 비슷한 색으로 이어진 영역(외곽선에서 멈춤)을 목표 색으로 바꿈. 명암은 유지."""
+    x0, y0, x1, y1 = op["box"]
+    sub = np.ascontiguousarray(A[y0:y1, x0:x1])
+    mask = np.zeros((sub.shape[0] + 2, sub.shape[1] + 2), np.uint8)
+    t = op.get("tol", 18)
+    sx, sy = op["seed"]
+    cv2.floodFill(sub.copy(), mask, (sx - x0, sy - y0), (0, 0, 0), (t, t, t), (t, t, t),
+                  4 | cv2.FLOODFILL_MASK_ONLY | cv2.FLOODFILL_FIXED_RANGE | (255 << 8))
+    m = np.zeros(A.shape[:2], bool)
+    m[y0:y1, x0:x1] = mask[1:-1, 1:-1] > 0
+    m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)).astype(bool)
+    src = A.astype(float)
+    lum = src.mean(2, keepdims=True)
+    ref = np.median(lum[m]) if m.any() else 1
+    tgt = np.array(op["color"], float)
+    E = np.clip(tgt * (lum / max(ref, 1)), 0, 255).astype(np.uint8)
+    out = B.copy(); out[m] = E[m]
+    return feather(B, out, m, 1), m
+
+
 def run(folder, spec):
     A = np.asarray(Image.open(f"{folder}/base.png").convert("RGB"))
     B = A.copy(); ans = []
     for op in spec:
-        B, m = (do_hue if op["type"] == "hue" else do_remove)(A, B, op)
+        B, m = {"hue": do_hue, "remove": do_remove, "tint": do_tint}[op["type"]](A, B, op)
         ys, xs = np.nonzero(m)
         if len(xs) == 0:
             print("  ⚠ 바뀐 픽셀 없음:", op["label"]); continue
