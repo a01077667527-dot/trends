@@ -65,11 +65,36 @@ def do_tint(A, B, op):
     """씨앗 점에서 비슷한 색으로 이어진 영역(외곽선에서 멈춤)을 목표 색으로 바꿈. 명암은 유지."""
     x0, y0, x1, y1 = op["box"]
     sub = np.ascontiguousarray(A[y0:y1, x0:x1])
-    mask = np.zeros((sub.shape[0] + 2, sub.shape[1] + 2), np.uint8)
     t = op.get("tol", 18)
     sx, sy = op["seed"]
-    cv2.floodFill(sub.copy(), mask, (sx - x0, sy - y0), (0, 0, 0), (t, t, t), (t, t, t),
-                  4 | cv2.FLOODFILL_MASK_ONLY | cv2.FLOODFILL_FIXED_RANGE | (255 << 8))
+
+    def fill(px, py):
+        mk = np.zeros((sub.shape[0] + 2, sub.shape[1] + 2), np.uint8)
+        cv2.floodFill(sub.copy(), mk, (px - x0, py - y0), (0, 0, 0), (t, t, t), (t, t, t),
+                      4 | cv2.FLOODFILL_MASK_ONLY | cv2.FLOODFILL_FIXED_RANGE | (255 << 8))
+        mk[0, :] = mk[-1, :] = 0; mk[:, 0] = mk[:, -1] = 0
+        return mk
+
+    def touches(mk):
+        inner = mk[1:-1, 1:-1] > 0
+        return inner[0].any() or inner[-1].any() or inner[:, 0].any() or inner[:, -1].any()
+
+    mask = fill(sx, sy)
+    limit = 0.7 * sub.shape[0] * sub.shape[1]
+    if op.get("closed", True) and touches(mask):
+        mask = np.zeros_like(mask)
+    if (mask > 0).sum() < 150:   # 씨앗이 외곽선 위면 근처에서 가장 넓게 칠해지는 점을 찾음
+        best = mask
+        r = op.get("search", 16)
+        for py in range(sy - r, sy + r + 1, 3):
+            for px in range(sx - r, sx + r + 1, 3):
+                if not (x0 <= px < x1 and y0 <= py < y1) or A[py, px].max() < 90:
+                    continue
+                mk = fill(px, py)
+                n = (mk > 0).sum()
+                if (best > 0).sum() < n < limit and not (op.get("closed", True) and touches(mk)):
+                    best = mk
+        mask = best
     m = np.zeros(A.shape[:2], bool)
     m[y0:y1, x0:x1] = mask[1:-1, 1:-1] > 0
     m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)).astype(bool)
