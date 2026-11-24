@@ -22,6 +22,7 @@ STYLES = [
     ([("매의 눈", YEL), (" 테스트", PINK)], [("어", WHITE), ("디", WHITE), ("가", WHITE), ("달", YEL), ("라", YEL), ("졌", YEL), ("을", GRN), ("까", GRN), ("?", GRN)], "정답은 댓글에 적어주세요"),
     ([("두뇌", GRN), (" 집중 ", WHITE), ("타임", YEL)], [("3", PINK), ("곳", PINK), ("만", WHITE), ("찾", YEL), ("으", YEL), ("면", YEL), ("합", GRN), ("격", GRN)], "정답은 댓글에 적어주세요"),
     ([("오늘의", YEL), (" 틀린그림", PINK)], [("다", WHITE), ("른", WHITE), ("곳", YEL), ("세", YEL), ("군", GRN), ("데", GRN)], "정답은 댓글에 적어주세요"),
+    ([("추억", YEL), (" 다른그림 찾기", WHITE)], [("그", YEL), ("때", YEL), ("그", WHITE), ("시", WHITE), ("절", WHITE), ("3", PINK), ("곳", PINK)], "정답은 댓글에 적어주세요"),
 ]
 
 
@@ -33,7 +34,7 @@ def text_runs(d, cx, y, runs, size, stroke=6):
         x += d.textlength(t, font=F(size))
 
 
-def render(folder, out, find=30, style=0, reveal=False, bgm="pluck"):
+def render(folder, out, find=30, style=0, reveal=False, bgm="pluck", ai_note=False):
     A = Image.open(f"{folder}/base.png").convert("RGB")
     B = Image.open(f"{folder}/b.png").convert("RGB")
     ans = json.load(open(f"{folder}/answers.json"))
@@ -52,6 +53,8 @@ def render(folder, out, find=30, style=0, reveal=False, bgm="pluck"):
     base = Image.new("RGB", (W, H), "#000")
     d = ImageDraw.Draw(base)
     text_runs(d, W / 2 - 40, 225, title, 92)
+    if ai_note:
+        d.text((W - 30, H - 30), "AI로 재현한 그 시절 풍경", font=F(30), fill="#888888", anchor="rd")
     d.rectangle((col, top - 10, col + iw + 20, bottom + 10), fill=LIME)
     for (x, y, w, h), im in zip(boxes, (A, B)):
         base.paste(im.resize((w, h), Image.LANCZOS), (x, y))
@@ -129,4 +132,4 @@ def render(folder, out, find=30, style=0, reveal=False, bgm="pluck"):
 if __name__ == "__main__":
     a = sys.argv[1:]
     opt = lambda k, dft: type(dft)(a[a.index(k) + 1]) if k in a else dft
-    render(a[0], a[1], opt("--time", 30), opt("--style", 0), "--reveal" in a, opt("--bgm", "pluck"))
+    render(a[0], a[1], opt("--time", 30), opt("--style", 0), "--reveal" in a, opt("--bgm", "pluck"), "--ai" in a)
