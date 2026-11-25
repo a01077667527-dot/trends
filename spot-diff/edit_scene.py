@@ -108,29 +108,23 @@ def do_tint(A, B, op):
 
 
 def do_erase_line(A, B, op):
-    """상자 안의 검은 선(외곽선·주름·눈썹 조각 등)만 지우고 주변 바탕색으로 채움. mode=light 이면 밝은 하이라이트를 지움."""
+    """상자 안에서 바탕(단색 면)과 다른 선·점을 지우고 바탕색으로 채움.
+    바탕색 = 상자 테두리 픽셀의 중간값. 안티에일리어싱 가장자리까지 넓혀서 지워 자국이 남지 않게 함."""
     x0, y0, x1, y1 = op["box"]
     sub = A[y0:y1, x0:x1].astype(int)
-    v = sub.max(2)
-    if op.get("mode") == "light":
-        line = (v > op.get("vmin", 235)) & ((sub.max(2) - sub.min(2)) < 30)
-    else:
-        line = v < op.get("vmax", 90)
-    fill_px = sub[~line]
-    if op.get("fill_vmin"):
-        fill_px = fill_px[fill_px.max(-1) >= op["fill_vmin"]]
-    if len(fill_px) == 0:
-        return B, np.zeros(A.shape[:2], bool)
-    col = np.median(fill_px.reshape(-1, 3), 0)
-    m = np.zeros(A.shape[:2], bool)
+    border = np.concatenate([sub[0], sub[-1], sub[:, 0], sub[:, -1]])
+    bg = np.median(border, 0)
+    dist = np.abs(sub - bg).sum(2)
+    line = dist > op.get("thr", 45)
+    m = np.zeros(A.shape[:2], np.uint8)
     m[y0:y1, x0:x1] = line
-    m = cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
-    keep = np.zeros_like(m); keep[y0:y1, x0:x1] = True
-    m &= keep
-    if op.get("fill") == "median":
-        out = B.copy(); out[m] = col
-    else:   # 주변 색을 자연스럽게 이어서 채움 (단색 면 위의 선에 적합)
-        out = cv2.inpaint(np.ascontiguousarray(B), m.astype(np.uint8) * 255, 4, cv2.INPAINT_TELEA)
+    m = cv2.dilate(m, np.ones((3, 3), np.uint8), iterations=op.get("grow", 2))
+    keep = np.zeros_like(m); keep[y0:y1, x0:x1] = 1
+    m = (m & keep).astype(bool)
+    if op.get("fill") == "inpaint":   # 바탕에 그라데이션이 있으면 주변을 이어서 채움
+        out = cv2.inpaint(np.ascontiguousarray(B), m.astype(np.uint8) * 255, 6, cv2.INPAINT_TELEA)
+    else:
+        out = B.copy(); out[m] = bg.astype(np.uint8)
     return feather(B, out, m, 1), m
 
 
