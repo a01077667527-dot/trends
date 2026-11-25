@@ -139,7 +139,8 @@ def music_pluck(total):
     chords = [G, D, Em, C]
     out = np.zeros(int(SR * (total + 2)))
     def put(at, sig):
-        i = int(at * SR); j = min(len(out), i + len(sig)); out[i:j] += sig[: j - i]
+        i = int(at * SR); j = min(len(out), i + len(sig))
+        if j > i: out[i:j] += sig[: j - i]
     rng = np.random.default_rng(3)
     hat = rng.standard_normal(int(SR * .05)) * np.exp(-np.arange(int(SR * .05)) / SR / .012)
     hat = np.diff(hat, prepend=0)  # 고음만 남겨 살랑거리게
@@ -168,7 +169,8 @@ def music(total, style="musicbox"):
     chords = [[261.6, 329.6, 392.0], [220.0, 261.6, 329.6], [174.6, 220.0, 261.6], [196.0, 246.9, 293.7]]
     out = np.zeros(int(SR * (total + 2)))
     def put(at, sig):
-        i = int(at * SR); j = min(len(out), i + len(sig)); out[i:j] += sig[: j - i]
+        i = int(at * SR); j = min(len(out), i + len(sig))
+        if j > i: out[i:j] += sig[: j - i]
     t, bar = 0.0, 0
     while t < total:
         c = chords[bar % 4]
