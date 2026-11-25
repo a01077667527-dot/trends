@@ -127,7 +127,10 @@ def do_erase_line(A, B, op):
     m = cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
     keep = np.zeros_like(m); keep[y0:y1, x0:x1] = True
     m &= keep
-    out = B.copy(); out[m] = col
+    if op.get("fill") == "median":
+        out = B.copy(); out[m] = col
+    else:   # 주변 색을 자연스럽게 이어서 채움 (단색 면 위의 선에 적합)
+        out = cv2.inpaint(np.ascontiguousarray(B), m.astype(np.uint8) * 255, 4, cv2.INPAINT_TELEA)
     return feather(B, out, m, 1), m
 
 
