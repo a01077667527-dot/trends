@@ -107,11 +107,56 @@ def do_tint(A, B, op):
     return feather(B, out, m, 1), m
 
 
+def do_erase_line(A, B, op):
+    """상자 안의 검은 선(외곽선·주름·눈썹 조각 등)만 지우고 주변 바탕색으로 채움. mode=light 이면 밝은 하이라이트를 지움."""
+    x0, y0, x1, y1 = op["box"]
+    sub = A[y0:y1, x0:x1].astype(int)
+    v = sub.max(2)
+    if op.get("mode") == "light":
+        line = (v > op.get("vmin", 235)) & ((sub.max(2) - sub.min(2)) < 30)
+    else:
+        line = v < op.get("vmax", 90)
+    fill_px = sub[~line]
+    if op.get("fill_vmin"):
+        fill_px = fill_px[fill_px.max(-1) >= op["fill_vmin"]]
+    if len(fill_px) == 0:
+        return B, np.zeros(A.shape[:2], bool)
+    col = np.median(fill_px.reshape(-1, 3), 0)
+    m = np.zeros(A.shape[:2], bool)
+    m[y0:y1, x0:x1] = line
+    m = cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    keep = np.zeros_like(m); keep[y0:y1, x0:x1] = True
+    m &= keep
+    out = B.copy(); out[m] = col
+    return feather(B, out, m, 1), m
+
+
+def do_flip(A, B, op):
+    """상자 안 그림을 좌우(또는 상하) 뒤집기 – 머리카락 한 가닥, 주머니, 무늬 방향 등."""
+    x0, y0, x1, y1 = op["box"]
+    patch = B[y0:y1, x0:x1]
+    patch = patch[::-1] if op.get("axis") == "v" else patch[:, ::-1]
+    out = B.copy(); out[y0:y1, x0:x1] = patch
+    m = np.zeros(A.shape[:2], bool); m[y0:y1, x0:x1] = np.abs(out[y0:y1, x0:x1].astype(int) - B[y0:y1, x0:x1]).sum(2) > 30
+    return out, m
+
+
+def do_copy(A, B, op):
+    """작은 조각(src 상자)을 다른 위치(dst 좌상단)에 복사 – 단추 하나 추가, 줄무늬 하나 더 등."""
+    x0, y0, x1, y1 = op["box"]
+    dx, dy = op["dst"]
+    patch = A[y0:y1, x0:x1]
+    out = B.copy(); out[dy:dy + (y1 - y0), dx:dx + (x1 - x0)] = patch
+    m = np.zeros(A.shape[:2], bool)
+    m[dy:dy + (y1 - y0), dx:dx + (x1 - x0)] = np.abs(patch.astype(int) - B[dy:dy + (y1 - y0), dx:dx + (x1 - x0)]).sum(2) > 30
+    return out, m
+
+
 def run(folder, spec):
     A = np.asarray(Image.open(f"{folder}/base.png").convert("RGB"))
     B = A.copy(); ans = []
     for op in spec:
-        B, m = {"hue": do_hue, "remove": do_remove, "tint": do_tint}[op["type"]](A, B, op)
+        B, m = {"hue": do_hue, "remove": do_remove, "tint": do_tint, "erase_line": do_erase_line, "flip": do_flip, "copy": do_copy}[op["type"]](A, B, op)
         ys, xs = np.nonzero(m)
         if len(xs) == 0:
             print("  ⚠ 바뀐 픽셀 없음:", op["label"]); continue

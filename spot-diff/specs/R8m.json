@@ -1,0 +1,59 @@
+[
+ {
+  "type": "erase_line",
+  "label": "셔츠 단추 하나",
+  "box": [
+   341,
+   286,
+   354,
+   298
+  ],
+  "vmax": 65
+ },
+ {
+  "type": "erase_line",
+  "label": "셔틀콕 깃털 줄",
+  "box": [
+   523,
+   170,
+   545,
+   185
+  ],
+  "vmax": 90,
+  "fill_vmin": 220
+ },
+ {
+  "type": "erase_line",
+  "label": "할머니 코 선",
+  "box": [
+   714,
+   205,
+   727,
+   226
+  ],
+  "vmax": 215
+ },
+ {
+  "type": "erase_line",
+  "label": "할머니 볼 주름",
+  "box": [
+   752,
+   203,
+   771,
+   223
+  ],
+  "vmax": 215
+ },
+ {
+  "type": "erase_line",
+  "label": "셔츠 흰 줄 한 토막",
+  "box": [
+   305,
+   297,
+   326,
+   309
+  ],
+  "mode": "light",
+  "vmin": 200
+ }
+]
