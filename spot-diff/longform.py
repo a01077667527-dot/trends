@@ -154,7 +154,7 @@ def make_thumb(probs, out_dir, text=THUMB_TEXT):
     th.save(f"{out_dir}/thumbnail.png")
 
 
-def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0, thumb_text=None):
+def render(out_dir, folders, find=90, bgm="musicbox", intro=None, ans_sec=10.0, thumb_text=None):
     os.makedirs(out_dir, exist_ok=True)
     probs = [load(f) for f in folders]
     n = len(probs)
@@ -243,7 +243,7 @@ def render(out_dir, folders, find=45, bgm="musicbox", intro=None, ans_sec=10.0, 
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    opts = {"--time": 45, "--bgm": "musicbox", "--intro": ""}
+    opts = {"--time": 90, "--bgm": "musicbox", "--intro": ""}
     rest = []
     i = 0
     while i < len(a):
